@@ -27,8 +27,9 @@ export class UsersController {
   constructor(private readonly users: UsersService) {}
 
   @Get()
-  @Roles('admin')
-  @ApiOperation({ summary: 'รายชื่อผู้ใช้ (admin)' })
+  // staff ต้องหา id ของนักศึกษาได้เองเพื่อผูกห้อง (PATCH /users/:id) — ตัดสิน 6 ต.ค. 2569
+  @Roles('staff', 'admin')
+  @ApiOperation({ summary: 'รายชื่อผู้ใช้ (staff, admin)' })
   @ApiOkResponse({ type: [UserView] })
   async list(@Query() q: ListUsersQuery): Promise<UserView[]> {
     return (await this.users.list(q)).map(toUserView);

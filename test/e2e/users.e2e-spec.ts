@@ -122,17 +122,16 @@ describe('users', () => {
 
   describe('GET /users', () => {
     // @parity test_student_cannot_list_users
-    // เดิม staff ดูรายชื่อได้ · DESIGN ตาราง 7 ให้ admin เท่านั้น — ทำตาม DESIGN และรายงานเป็นเรื่องค้าง
-    it.each(['student', 'tech', 'staff'] as const)('%s ดูรายชื่อไม่ได้ → 403', async (who) => {
+    it.each(['student', 'tech'] as const)('%s ดูรายชื่อไม่ได้ → 403', async (who) => {
       await http()
         .get('/users')
         .set(await as(people[who]))
         .expect(403);
     });
 
-    // @parity test_list_users_filters — P*: เรียกด้วย admin
+    // @parity test_list_users_filters — เรียกด้วย staff เหมือนของเดิม (staff ต้องหา id นักศึกษาเพื่อผูกห้อง)
     it('กรองตาม role / อีเมลบางส่วน / is_active / room_id', async () => {
-      const h = await as(people.admin);
+      const h = await as(people.staff);
       const room = await makeRoom(ds, building);
       await ds.query(`UPDATE users SET room_id = $1 WHERE id = $2`, [room, people.student]);
       await ds.query(`UPDATE users SET is_active = false WHERE id = $1`, [people.tech]);
