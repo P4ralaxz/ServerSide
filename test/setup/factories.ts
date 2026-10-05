@@ -14,12 +14,18 @@ export const makeBuilding = async (ds: DataSource, code = `B${next()}`): Promise
   return id;
 };
 
-export const makeRoom = async (ds: DataSource, buildingId: string, roomNo = `${300 + next()}`): Promise<string> => {
+export const makeRoom = async (
+  ds: DataSource,
+  buildingId: string,
+  roomNo = `${300 + next()}`,
+  capacity = 2,
+): Promise<string> => {
   const id = randomUUID();
-  await ds.query(`INSERT INTO rooms (id, building_id, room_no, floor, capacity) VALUES ($1, $2, $3, 3, 2)`, [
+  await ds.query(`INSERT INTO rooms (id, building_id, room_no, floor, capacity) VALUES ($1, $2, $3, 3, $4)`, [
     id,
     buildingId,
     roomNo,
+    capacity,
   ]);
   return id;
 };
@@ -38,13 +44,17 @@ export const makeUser = async (
   return id;
 };
 
-export const makeAsset = async (ds: DataSource, buildingId: string, roomId: string | null = null): Promise<string> => {
+export const makeAsset = async (
+  ds: DataSource,
+  buildingId: string,
+  roomId: string | null = null,
+  assetCode = `A-${next()}`,
+): Promise<string> => {
   const id = randomUUID();
-  const n = next();
   await ds.query(
     `INSERT INTO assets (id, asset_code, name, category, building_id, room_id, qr_token)
      VALUES ($1, $2, 'ครุภัณฑ์ทดสอบ', 'electrical', $3, $4, $5)`,
-    [id, `A-${n}`, buildingId, roomId, `qr-${n}-${id}`],
+    [id, assetCode, buildingId, roomId, `qr-${id}`],
   );
   return id;
 };
@@ -55,6 +65,7 @@ export interface TicketInput {
   scope?: TicketScope;
   roomId?: string | null;
   status?: TicketStatus;
+  assignedTo?: string | null;
   permissionToEnter?: boolean;
   resolvedAt?: Date | null;
   closedAt?: Date | null;
@@ -66,8 +77,8 @@ export const makeTicket = async (ds: DataSource, o: TicketInput): Promise<string
   const id = randomUUID();
   await ds.query(
     `INSERT INTO tickets (id, ticket_no, batch_id, asset_id, scope, room_id, reporter_id, status, title,
-                          permission_to_enter, resolved_at, closed_at, close_reason, deleted_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ทดสอบ', $9, $10, $11, $12, $13)`,
+                          permission_to_enter, resolved_at, closed_at, close_reason, deleted_at, assigned_to)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ทดสอบ', $9, $10, $11, $12, $13, $14)`,
     [
       id,
       `TK-TEST-${String(next()).padStart(6, '0')}`,
@@ -82,7 +93,13 @@ export const makeTicket = async (ds: DataSource, o: TicketInput): Promise<string
       o.closedAt ?? null,
       o.closeReason ?? null,
       o.deletedAt ?? null,
+      o.assignedTo ?? null,
     ],
   );
   return id;
+};
+
+export const ticketNoOf = async (ds: DataSource, ticketId: string): Promise<string> => {
+  const [row]: { ticket_no: string }[] = await ds.query(`SELECT ticket_no FROM tickets WHERE id = $1`, [ticketId]);
+  return row.ticket_no;
 };

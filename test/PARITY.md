@@ -521,10 +521,100 @@
 เคสใหม่จากตาราง contract ที่ทำแล้ว: predicate ของ `idx_tickets_reporter_open` · `cancelled` ไม่อยู่ใน `OPEN_STATUSES` ·
 `VIA_ACTION` ครอบ `Endpoint` ทุกค่า (ส่วน "ทุก action มีกรณีใน `TicketPolicy.assertCan`" รอสัปดาห์ 3)
 
+## สัปดาห์ 2 — หมวด 1 auth (33) + หมวด 2 users / rooms / buildings / assets (32)
+
+ไฟล์เทส: `test/e2e/auth.e2e-spec.ts` · `users.e2e-spec.ts` · `rooms.e2e-spec.ts` (รวม buildings) · `assets.e2e-spec.ts`
+ทุกเคสที่แปลมีคอมเมนต์ `// @parity <ชื่อเทสเดิม>` หรือ `// @superseded <ชื่อเทสเดิม>` กำกับในไฟล์
+
+### auth — แปลครบ 33 เคส
+
+| เคส | ป้ายที่ใช้จริง | สิ่งที่ต่างจากของเดิม |
+|---|---|---|
+| 1–5, 8, 10, 12, 20–23, 25, 27–30 | P | ไม่ต่าง |
+| 6 `code_is_stored_hashed_not_plain` | P* | HMAC ด้วย `OTP_SECRET` แยกจาก `JWT_SECRET` + เทสเพิ่มว่าไม่ใช่ sha256 เปล่า |
+| 7 `email_is_normalized_to_lowercase` | P* | ขอด้วยตัวใหญ่ ยืนยันด้วยตัวเล็ก ได้บัญชีเดียว (DTO แปลงเป็นตัวเล็ก + คอลัมน์ `citext`) |
+| 8 `rate_limited_per_email` | P* | มีช่วงพัก 60 วินาทีเพิ่มจากของเดิม เทสจึงขยับ `created_at` ระหว่างคำขอ |
+| 9 `rate_limited_per_ip` | P | เดิมลดเพดานด้วย monkeypatch · ใหม่ยิงครบ 30 ครั้งจริง |
+| 11 `first_login_auto_provisions_student` | P* | ไม่มี `student_id` / `email_verified_at` / `last_login_at` ใน schema ใหม่ |
+| 13 `wrong_code_counts_attempts_then_locks` | P* | รหัสผิดตอบ **401** `INVALID_CODE` (เดิม 400) · ล็อกแล้ว **429** `CODE_LOCKED` เหมือนเดิม |
+| 14–17 หมดอายุ / ใช้ซ้ำ / รหัสเก่า / ไม่เคยขอ | P* | ตอบ **401** (เดิม 400) — DESIGN ตาราง 7 ให้ verify-code ตอบ 400 เฉพาะ validate |
+| 18 `verify_bad_code_format_is_400` | P | + เช็คว่าไม่นับ `attempts` |
+| 19 `inactive_user_cannot_login` | **B → ทำเป็น 401 ไว้ก่อน** | เดิม 403 · ใช้ **401** `ACCOUNT_DISABLED` ให้ตรงกับ guard — **รอยืนยัน** ถ้าต้องการ 403 แก้บรรทัดเดียวใน `auth.service.ts` |
+| 24 `me_rejects_expired_token` | P* | อายุ token 8 ชม. |
+| 26 `suspended_after_login_blocked_immediately` | P* | guard ตอบ 401 (เดิม 403) |
+| 31 `db_rejects_non_university_email` | P | อยู่ใน `test/contract/schema-vs-code.spec.ts` + ผ่าน HTTP ใน `error-handling.e2e-spec.ts` (23514 → 400) |
+| 32–33 `dev_mode_prints_code` / `production_mode_never_prints_code` | S | ไม่มีโหมดพิมพ์รหัสแล้ว — dev ดูใน Mailpit, e2e อ่านจาก `FakeMailService` · เทสที่มาแทน: "ไม่เขียนรหัสลง log แม้ตอนส่งเมลล้มเหลว" |
+
+เคสใหม่ของ auth (ไม่มีในของเดิม): ช่วงพัก 60 วินาที + `Retry-After` · คนที่ 6 ของหอยังขอรหัสได้ ·
+verify ต่อ IP 60/ชม. · บัญชีถูกลบแบบ soft แล้ว login ได้บัญชีใหม่ · JWT มีแค่ `sub` ·
+token แบบ `alg=none` / `sub` ไม่ใช่ uuid → 401 · ส่งเมลล้มเหลวหรือค้างก็ตอบ 202 ·
+**concurrency 3 เคส**: รหัสผิดพร้อมกัน 20 request · รหัสถูกพร้อมกัน 2 request · ขอรหัสพร้อมกัน 10 request
+
+### rooms / buildings — แปลครบ 12 เคส
+
+| เคส | ป้ายที่ใช้จริง | สิ่งที่ต่างจากของเดิม |
+|---|---|---|
+| 34 `anyone_logged_in_can_read_rooms` | P* | ตัด `/rooms/by-code` — schema ใหม่ไม่มี `room_code` |
+| 35–37, 40, 41, 44, 45 | P | ไม่ต่าง |
+| 38 `staff_creates_room` | P* | ส่ง `building_id` · ไม่มี `is_active` ของห้อง |
+| 39 `duplicate_room_is_409` | P* | `uq_rooms_no (building_id, room_no)` + เลขเดิมสร้างใหม่ได้หลัง soft delete |
+| 42 `moving_room_building_moves_its_assets` | **X → P\*** | ป้าย X เดิมผิด: `assets.building_id` ยังเก็บซ้ำอยู่ (ครุภัณฑ์ส่วนกลางไม่มีห้องให้ join) ย้ายห้องข้ามอาคารจึงต้องพาครุภัณฑ์ในห้องตามไปเหมือนของเดิม |
+| 43 `delete_room_in_use_is_409` | P | `rooms.capacity` กลับมาแล้ว |
+
+เคสใหม่: CRUD ของ `/buildings` (ของเดิมไม่มีตารางนี้) · อาคารที่ถูก soft delete → 400 · ลด `capacity` ต่ำกว่าผู้พัก → 409
+
+### assets — แปลครบ 9 เคส
+
+| เคส | ป้ายที่ใช้จริง | สิ่งที่ต่างจากของเดิม |
+|---|---|---|
+| 46 `create_common_area_asset_needs_building` | P* | `building_id` |
+| 47–52 | P | ไม่ต่าง |
+| 53 `soft_delete_asset` | P | + ใหม่: ลบ asset ที่มีใบเปิด → 409 `ASSET_HAS_OPEN_TICKET` ครบทุกสถานะใน `OPEN_STATUSES` |
+| 54 `asset_filters_and_qr_lookup` | S | ส่วน filter แปลแล้ว · ส่วน `/assets/by-code` รอ `GET /scan/:qrToken` สัปดาห์ 5 |
+
+เคสใหม่: `qr_token` สุ่ม 128 บิต ผู้ใช้กำหนดเองไม่ได้ และส่งให้เฉพาะ staff / admin
+
+### users — แปลครบ 11 เคส
+
+| เคส | ป้ายที่ใช้จริง | สิ่งที่ต่างจากของเดิม |
+|---|---|---|
+| 55–57, 60, 61, 63, 64 | P | ไม่ต่าง |
+| 58 `student_cannot_list_users` | P | + staff ก็ได้ 403 ตาม DESIGN ตาราง 7 (ดูข้อ 65) |
+| 59 `staff_assigns_room_then_student_can_report` | **P ครึ่งเดียว** | ครึ่ง "ผูกห้องได้" แปลแล้ว · ครึ่ง "แจ้งห้องได้หลังผูก" ต้องมี `POST /tickets` → **สัปดาห์ 3** |
+| 62 `admin_changes_role_and_suspends` | P* | token ของคนที่ถูกระงับได้ 401 (เดิม 403) · เปลี่ยนเป็น `staff` แทน `technician` ในเทสเดิม เพราะกฎใหม่ของช่าง |
+| 65 `list_users_filters` | P* | เดิมเรียกด้วย **staff** · DESIGN ตาราง 7 ให้ `GET /users` = admin เท่านั้น → เรียกด้วย admin — **รอยืนยัน** |
+| `DELETE /users/:id` → 204 | ใหม่ | ทำแล้ว |
+
+เคสใหม่จากกฎที่ตัดสินสัปดาห์นี้ (DESIGN 4.4):
+- ช่างผูกห้องไม่ได้ — API 400 + `ck_technician_no_room` (มีเทสปิดด่าน API แล้วยิงผ่าน HTTP: DB ต้องตอบ 400 ไม่ใช่ 500)
+- ระงับ / ลบ / เปลี่ยน role ของช่างที่มีใบค้าง → 409 `TECHNICIAN_HAS_OPEN_TICKETS` + `details.tickets`
+- ผูกสองคนเข้าห้องที่เหลือ 1 ที่พร้อมกัน → 200 กับ 409 (concurrency)
+- staff ส่งฟิลด์อื่นนอกจาก `room_id` → 403 พร้อม `details.fields`
+
+### เคสของสัปดาห์อื่นที่ป้ายเปลี่ยนเพราะการตัดสินสัปดาห์นี้
+
+| เคส | เดิม | ใหม่ | เหตุผล |
+|---|---|---|---|
+| 172 `technician_living_in_the_dorm_still_cannot_confirm` | P | **S** | ช่างมี `room_id` ไม่ได้แล้ว (`ck_technician_no_room`) สถานการณ์นี้สร้างไม่ได้ตั้งแต่ระดับข้อมูล → สัปดาห์ 4 เขียนเป็น "ช่างกด `/confirm` → 403 ที่ชั้น 1" |
+
+### สรุปป้ายหลังสัปดาห์ 2
+
+| ป้าย | เคส |
+|---|---|
+| `P` / `P*` | **199** (−1 ข้อ 172 ไป S · +1 ข้อ 42 กลับมาจาก X) |
+| `S` superseded | **31** |
+| `X` ตกไปถาวร | **19** |
+| `B` ยังรอคำตอบ | **3** — 19 (ทำเป็น 401 ไว้ก่อน), 119, 125 |
+| รวม | **252** |
+
+แปลแล้วสะสม: หมวด 8 (10) + หมวด 1 (33) + หมวด 2 (32, ข้อ 59 ครึ่งเดียว) = **75 จาก 252**
+
 ## TODO ที่เลื่อนออกไป (อนุมัติ 6 ต.ค. 2569)
 
 | เรื่อง | ทำเมื่อไหร่ | หมายเหตุ |
 |---|---|---|
-| entity ของ TypeORM | สัปดาห์ 2 | สัปดาห์ 1 ใช้ SQL ตรงทั้ง seed และเทส — เพิ่ม entity พร้อมโมดูลแรกที่ใช้ |
+| ~~entity ของ TypeORM~~ | ~~สัปดาห์ 2~~ | **เสร็จแล้ว** — ครบ 11 ตาราง มี contract test เทียบคอลัมน์กับ DB |
+| เคส 59 ครึ่งหลัง (ผูกห้องแล้วแจ้งห้องได้) | สัปดาห์ 3 | ต้องมี `POST /tickets` |
+| `/assign` ต้อง lock แถว `users` ของช่างก่อนมอบงาน | สัปดาห์ 4 | คู่กับการเช็คใบค้างตอนระงับช่าง (DESIGN 4.4) |
 | seed: audit log ของ assign / priority | สัปดาห์ 4 | ทำพร้อม workflow — ตอนนี้ seed เขียน `ticket_audit_logs` แค่ `same_issue` ของใบ disputed |
 | seed: ใบแบบ batch (หลายใบ `batch_id` เดียวกัน) | สัปดาห์ 4 | ตอนนี้ทุกใบมี `batch_id` ของตัวเอง |

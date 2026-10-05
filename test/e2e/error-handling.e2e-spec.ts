@@ -3,6 +3,7 @@ import { IsInt, IsString, Min } from 'class-validator';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
+import { Public } from '../../src/common/auth/decorators';
 import { InvalidTransition } from '../../src/common/errors/domain-errors';
 import { createTestApp } from '../setup/app';
 import { openTestDb, truncateAll } from '../setup/truncate';
@@ -18,6 +19,7 @@ class ProbeDto {
 
 // endpoint จำลองที่ปล่อย error ของ Postgres หลุดถึง controller ตรง ๆ
 // ยังไม่มีโมดูลจริงในสัปดาห์ 1 แต่ filter ต้องพิสูจน์ได้ก่อนโมดูลแรกจะพึ่งมัน
+@Public()
 @Controller('probe')
 class ProbeController {
   constructor(private readonly ds: DataSource) {}
@@ -81,7 +83,7 @@ describe('error handling', () => {
   let ds: DataSource;
 
   beforeAll(async () => {
-    app = await createTestApp([ProbeController]);
+    ({ app } = await createTestApp([ProbeController]));
     ds = await openTestDb();
   });
   afterAll(async () => {
