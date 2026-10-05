@@ -13,6 +13,7 @@ const DEFAULT_CODE: Record<number, string> = {
 
 // จับทุกอย่างที่ไม่มี filter เฉพาะ เพื่อให้ body เป็นรูปเดียวกันทั้งระบบ
 // (exception ของ Nest เองตอบ { statusCode, message, error } ซึ่งไม่มี code ให้หน้าเว็บแยกกรณี)
+// รวม 401/403 ที่ guard โยนด้วย — filter ระดับ global ครอบ guard อยู่แล้ว
 @Catch()
 export class HttpErrorFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpErrorFilter.name);
@@ -22,6 +23,8 @@ export class HttpErrorFilter implements ExceptionFilter {
 
     if (exception instanceof AppException) {
       const status = exception.getStatus();
+      const retryAfter = (exception.details as { retry_after?: unknown } | undefined)?.retry_after;
+      if (status === 429 && typeof retryAfter === 'number') res.setHeader('Retry-After', String(retryAfter));
       res.status(status).json(errorBody(status, exception.code, exception.message, exception.details));
       return;
     }
