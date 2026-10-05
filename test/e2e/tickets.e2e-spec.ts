@@ -6,6 +6,7 @@ import { Ticket } from '../../src/database/entities';
 import { TicketStatus, UserRole } from '../../src/domain/enums';
 import { AUTO_URGENT_REPORT_COUNT, MAX_ITEMS_PER_BATCH, OPEN_TICKET_QUOTA } from '../../src/domain/limits';
 import { OPEN_STATUSES } from '../../src/domain/status-rules';
+import { TicketCreationService } from '../../src/modules/tickets/ticket-creation.service';
 import { TicketPolicy } from '../../src/modules/tickets/ticket-policy.service';
 import { bearer, createTestApp, resetThrottle } from '../setup/app';
 import { makeAsset, makeBuilding, makeRoom, makeTicket, makeUser, ticketNoOf, TicketInput } from '../setup/factories';
@@ -450,6 +451,58 @@ describe('tickets', () => {
     });
 
     // ของใหม่: ของเดิมบน SQLite ทดสอบไม่ได้
+    // ลำดับ lock users → lock ticket_counters → เช็คซ้ำ → จองเลข → INSERT:
+    // เช็คซ้ำอยู่หลัง lock ของ counter คนที่แพ้จึงเห็นใบของคนชนะก่อนจองเลข — ไม่มีเลขถูกจองทิ้ง
+    it('แจ้งชนกันพร้อมกัน เลขใบไม่ข้าม: ตัวนับเดินเท่าจำนวนใบที่สร้างได้จริง', async () => {
+      // ทุกคำขอมีครุภัณฑ์ที่ชนกัน 1 ชิ้น + ของตัวเองอีก 1 ชิ้น: คำขอที่แพ้ยังสร้างใบของตัวเองได้ (ไม่ rollback)
+      // ถ้าเช็คซ้ำก่อนได้ lock ทุกคำขอจะจองเลข 2 เลขแล้วใช้จริงเลขเดียว — ตัวนับจะวิ่งเกินจำนวนใบ
+      // (คำขอที่ซ้ำทุกรายการใช้พิสูจน์ไม่ได้ เพราะ 409 ทำให้ทั้งทรานแซกชันรวมถึงเลขที่จองถอยกลับ)
+      const own = await commons(8);
+      await warmPool();
+      const results = await Promise.all(own.map((mine) => post(dorm.staff, item(dorm.lift1), item(mine))));
+
+      expect(results.every((r) => r.status === 201)).toBe(true);
+      expect(results.filter((r) => r.body.created.length === 2)).toHaveLength(1);
+      expect(results.filter((r) => r.body.skipped.length === 1)).toHaveLength(7);
+      expect(await countTickets()).toBe(9);
+
+      const [counter]: { last_no: number }[] = await ds.query(`SELECT last_no FROM ticket_counters`);
+      expect(counter.last_no).toBe(9);
+      const year = thaiBuddhistYear();
+      const numbers: { ticket_no: string }[] = await ds.query(`SELECT ticket_no FROM tickets ORDER BY ticket_no`);
+      expect(numbers.map((n) => n.ticket_no)).toEqual(
+        Array.from({ length: 9 }, (_, i) => `TK-${year}-${String(i + 1).padStart(6, '0')}`),
+      );
+    });
+
+    // ON CONFLICT เป็นด่านสุดท้าย: จำลองว่าการเช็คซ้ำมองไม่เห็นใบเดิม (เช่น มีทางสร้างใบที่ไม่ผ่าน lock ของ counter)
+    // ต้องออกมาเป็น skipped ตามปกติ ไม่ใช่ 23505 ที่ทำให้ทั้งทรานแซกชันพังและใบที่เหลือใน batch สร้างไม่ได้
+    it('ถ้าการเช็คซ้ำพลาด ON CONFLICT ยังกันไว้ และใบที่เหลือใน batch ยังถูกสร้าง', async () => {
+      const old = await existing(dorm.bob, dorm.lift1);
+      const blind = jest
+        .spyOn(
+          TicketCreationService.prototype as unknown as { findOpenTickets: () => Promise<unknown[]> },
+          'findOpenTickets',
+        )
+        .mockResolvedValueOnce([]);
+      try {
+        const res = await post(dorm.alice, item(dorm.lift1), item(dorm.lift2));
+        expect(res.status).toBe(201);
+        expect(res.body.created.map((t: { asset_id: string }) => t.asset_id)).toEqual([dorm.lift2]);
+        expect(res.body.skipped).toEqual([
+          { asset_id: dorm.lift1, ticket_no: await ticketNoOf(ds, old), ticket_id: old },
+        ]);
+
+        blind.mockResolvedValueOnce([]);
+        const all = await post(dorm.alice, item(dorm.lift1));
+        expect(all.status).toBe(409);
+        expect(all.body.code).toBe('DUPLICATE_OPEN_TICKET');
+      } finally {
+        blind.mockRestore();
+      }
+      expect(await countTickets()).toBe(2);
+    });
+
     it('แจ้งครุภัณฑ์เดียวกันพร้อมกัน 10 request → สร้างได้ 1 ใบ อีก 9 ได้ 409 (ไม่มี 500)', async () => {
       const users = [dorm.alice, dorm.roommate, dorm.bob, dorm.homeless, dorm.staff];
       await warmPool();

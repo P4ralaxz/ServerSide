@@ -45,28 +45,35 @@ export class TicketCreationService {
     for (const asset of assets) this.policy.assertCanReport(user, asset);
 
     return this.dataSource.transaction(async (m) => {
-      // ลำดับ lock เดียวกันทุกที่: users → ticket_counters → tickets
+      // ลำดับตายตัว: lock users → lock ticket_counters → เช็คซ้ำ → จองเลขทั้งชุด → INSERT
       const openCount = user.role === 'student' ? await this.lockReporterAndCountOpen(m, user.id) : 0;
 
-      // เช็คซ้ำก่อนขอเลข เพื่อไม่ให้เลขใบข้ามทุกครั้งที่มีรายการซ้ำ — ON CONFLICT ข้างล่างยังเป็นด่านสุดท้ายของกรณีแจ้งพร้อมกัน
+      // ปี พ.ศ. คิดครั้งเดียวต่อคำขอ: lock กับการจองเลขต้องเป็นแถวเดียวกัน แม้คำขอคร่อมเที่ยงคืนวันสิ้นปี
+      const beYear = thaiBuddhistYear();
+      await this.lockTicketCounter(m, beYear);
+
+      // เช็คซ้ำ "หลัง" ได้ lock ของ counter: ตอนนี้ไม่มี batch อื่นกำลังสร้างใบอยู่ ภาพที่อ่านได้จึงเป็นภาพล่าสุดจริง
+      // รายการที่ซ้ำจึงถูกคัดออกก่อนจองเลข — เลขใบไม่ข้าม
       const skipped = new Map<string, SkippedItemView>();
       for (const row of await this.findOpenTickets(m, [...assetById.keys()])) skipped.set(row.asset_id, row);
 
-      // ไม่ต้องเรียงลำดับแทรกเพื่อกัน deadlock: ทุก batch ต้องได้ row lock ของ ticket_counters ก่อนแทรกใบแรก
-      // และถือไว้จนจบทรานแซกชัน สอง batch จึงแทรกใบสลับกันไม่ได้ (มีเทสยิงครุภัณฑ์ชุดเดียวกันสลับลำดับพร้อมกัน)
+      // การแทรกไม่ต้องเรียงตาม asset_id เพราะทุก batch ต้องได้ lock ของ ticket_counters ก่อนแทรกใบแรก
+      // (และถือไว้จนจบทรานแซกชัน สอง batch จึงแทรกใบสลับกันจน deadlock ไม่ได้)
+      // ถ้าเปลี่ยนวิธีจองเลขใบ ต้องกลับมาเรียงตาม asset_id
       const toCreate = dto.items.filter((i) => !skipped.has(i.asset_id));
       const batchId = randomUUID();
       const created = new Map<string, Ticket>();
 
       if (toCreate.length > 0) {
-        const numbers = await this.reserveTicketNumbers(m, toCreate.length);
+        const numbers = await this.reserveTicketNumbers(m, beYear, toCreate.length);
         for (const [idx, item] of toCreate.entries()) {
           const asset = assetById.get(item.asset_id)!;
           const ticket = await this.insertTicket(m, user, asset, item, batchId, numbers[idx]);
           if (ticket) {
             created.set(asset.id, ticket);
           } else {
-            // มีคนแจ้งครุภัณฑ์ชิ้นนี้ตัดหน้าไประหว่างทาง — เลขที่ขอมาเสียไปหนึ่งเลข ยอมรับได้
+            // ด่านสุดท้าย: ON CONFLICT จับได้ว่ามีใบเปิดอยู่ทั้งที่การเช็คข้างบนไม่เห็น
+            // (ไม่ควรเกิดตราบใดที่ทุกทางสร้างใบผ่าน lock ของ counter) — เลขที่จองไว้เสียไปหนึ่งเลข ยอมรับได้
             const [row] = await this.findOpenTickets(m, [asset.id]);
             if (row) skipped.set(asset.id, row);
           }
@@ -194,13 +201,21 @@ export class TicketCreationService {
     );
   }
 
-  // จองเลขทั้งชุดในคำสั่งเดียว — upsert มี row lock ในตัว สอง batch พร้อมกันได้เลขไม่ชน
-  private async reserveTicketNumbers(m: EntityManager, count: number): Promise<string[]> {
-    const beYear = thaiBuddhistYear();
-    const [row]: { last_no: number }[] = await m.query(
-      `INSERT INTO ticket_counters (be_year, last_no) VALUES ($1, $2)
-       ON CONFLICT (be_year) DO UPDATE SET last_no = ticket_counters.last_no + $2
-       RETURNING last_no`,
+  // row lock ของตัวนับประจำปี ถือไว้จนจบทรานแซกชัน — เป็นประตูเดียวของการสร้างใบทั้งระบบ
+  // สิ่งที่พึ่ง lock นี้: (1) เลขใบไม่ชน (2) การเช็คแจ้งซ้ำเห็นภาพล่าสุด (3) การแทรกของสอง batch ไม่สลับกัน จึงไม่ต้องเรียงตาม asset_id
+  // ถ้าเปลี่ยนวิธีจองเลขใบ (เช่น ใช้ sequence ที่ไม่ lock) ทั้งสามข้อหายไปพร้อมกัน — ต้องกลับไปเรียงลำดับแทรกตาม asset_id
+  private async lockTicketCounter(m: EntityManager, beYear: number): Promise<void> {
+    // แถวของปีใหม่ยังไม่มีในใบแรกของปี — สร้างไว้ก่อนเพื่อให้มีแถวให้ lock (DO NOTHING รอทรานแซกชันที่กำลังสร้างแถวเดียวกันอยู่)
+    await m.query(`INSERT INTO ticket_counters (be_year, last_no) VALUES ($1, 0) ON CONFLICT (be_year) DO NOTHING`, [
+      beYear,
+    ]);
+    await m.query(`SELECT 1 FROM ticket_counters WHERE be_year = $1 FOR UPDATE`, [beYear]);
+  }
+
+  // จองเลขทั้งชุดในคำสั่งเดียว — ต้องเรียกหลัง lockTicketCounter ในทรานแซกชันเดียวกันเท่านั้น
+  private async reserveTicketNumbers(m: EntityManager, beYear: number, count: number): Promise<string[]> {
+    const [[row]]: [{ last_no: number }[], number] = await m.query(
+      `UPDATE ticket_counters SET last_no = last_no + $2 WHERE be_year = $1 RETURNING last_no`,
       [beYear, count],
     );
     return Array.from({ length: count }, (_, i) => formatTicketNo(beYear, row.last_no - count + 1 + i));
