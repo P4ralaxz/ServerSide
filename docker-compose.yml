@@ -1,0 +1,31 @@
+# ตั้งชื่อโปรเจกต์ตายตัว: container / volume ไม่เปลี่ยนชื่อตามโฟลเดอร์ และไม่ชนกับ compose ของโปรเจกต์อื่น
+name: serverside
+
+# พอร์ตฝั่ง host อ่านจาก .env (ค่าหลัง :- คือค่าเดียวกับ .env.example)
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: dorm
+      POSTGRES_PASSWORD: dorm
+      POSTGRES_DB: dorm
+      TZ: UTC
+    ports:
+      - "${DB_PORT:-5434}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dorm -d dorm"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ดูเมล OTP ที่ http://localhost:8026
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1026}:1025"
+      - "${MAILPIT_WEB_PORT:-8026}:8025"
+
+volumes:
+  pgdata:
