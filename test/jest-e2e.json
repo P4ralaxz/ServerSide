@@ -1,0 +1,11 @@
+{
+  "preset": "ts-jest",
+  "testEnvironment": "node",
+  "rootDir": "..",
+  "roots": ["<rootDir>/test"],
+  "testRegex": "(e2e/.*\\.e2e-spec|contract/.*\\.spec)\\.ts$",
+  "globalSetup": "<rootDir>/test/setup/global-setup.ts",
+  "globalTeardown": "<rootDir>/test/setup/global-teardown.ts",
+  "setupFiles": ["<rootDir>/src/common/time/utc.ts"],
+  "testTimeout": 30000
+}
