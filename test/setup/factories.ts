@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
-import { TicketScope, TicketStatus, UserRole } from '../../src/domain/enums';
+import { TicketPriority, TicketScope, TicketStatus, UserRole } from '../../src/domain/enums';
 
 // เขียนตรงลง DB ด้วย SQL — ข้ามกฎของ service โดยเจตนา
 // เพื่อให้เทสวางใบในสถานะใดก็ได้ และทดสอบได้ว่า DB ปฏิเสธเองเมื่อโค้ดพลาด
@@ -71,17 +71,21 @@ export interface TicketInput {
   closedAt?: Date | null;
   closeReason?: string | null;
   deletedAt?: Date | null;
+  priority?: TicketPriority;
+  reportCount?: number;
+  ticketNo?: string;
 }
 
 export const makeTicket = async (ds: DataSource, o: TicketInput): Promise<string> => {
   const id = randomUUID();
   await ds.query(
     `INSERT INTO tickets (id, ticket_no, batch_id, asset_id, scope, room_id, reporter_id, status, title,
-                          permission_to_enter, resolved_at, closed_at, close_reason, deleted_at, assigned_to)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ทดสอบ', $9, $10, $11, $12, $13, $14)`,
+                          permission_to_enter, resolved_at, closed_at, close_reason, deleted_at, assigned_to,
+                          priority, report_count)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ทดสอบ', $9, $10, $11, $12, $13, $14, $15, $16)`,
     [
       id,
-      `TK-TEST-${String(next()).padStart(6, '0')}`,
+      o.ticketNo ?? `TK-TEST-${String(next()).padStart(6, '0')}`,
       randomUUID(),
       o.assetId,
       o.scope ?? 'common_area',
@@ -94,8 +98,12 @@ export const makeTicket = async (ds: DataSource, o: TicketInput): Promise<string
       o.closeReason ?? null,
       o.deletedAt ?? null,
       o.assignedTo ?? null,
+      o.priority ?? 'normal',
+      o.reportCount ?? 1,
     ],
   );
+  // ผู้แจ้งนับเป็นคนแรกใน ticket_reporters เหมือนใบที่สร้างผ่าน API
+  await ds.query(`INSERT INTO ticket_reporters (ticket_id, user_id) VALUES ($1, $2)`, [id, o.reporterId]);
   return id;
 };
 

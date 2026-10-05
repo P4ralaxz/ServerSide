@@ -609,12 +609,114 @@ token แบบ `alg=none` / `sub` ไม่ใช่ uuid → 401 · ส่ง�
 
 แปลแล้วสะสม: หมวด 8 (10) + หมวด 1 (33) + หมวด 2 (32, ข้อ 59 ครึ่งเดียว) = **75 จาก 252**
 
+## สัปดาห์ 3 — หมวด 3 tickets (58 เคส)
+
+ไฟล์เทส: `test/e2e/tickets.e2e-spec.ts` (95 เคส) · `src/modules/tickets/ticket-policy.service.spec.ts` (ตารางสิทธิ์ ไม่ใช้ DB)
+คำตอบที่ใช้ (6 ต.ค. 2569): `/same-issue` = student เท่านั้น · ยกระดับ urgent ครั้งเดียวต่อใบ ·
+query param ของ `GET /tickets` ชุดเดียวกับของเดิม · `GET /users` = staff + admin
+
+### สร้างแบบ batch (9)
+
+| เคส | ป้ายที่ใช้จริง | สิ่งที่ต่างจากของเดิม |
+|---|---|---|
+| 66 `batch_creates_separate_tickets_sharing_batch_id` | P* | `open` / `normal` / `building_id` · รายการที่ 3 ใช้ครุภัณฑ์จริงแทนใบไม่มี asset |
+| 67 `every_ticket_gets_initial_status_log` | P* | `NULL → open` + เช็ค `ticket_reporters` |
+| 68 `single_item_has_no_batch_id` | S | ใบเดี่ยวก็มี `batch_id` ของตัวเอง |
+| 69 `ticket_no_continues_from_existing` | S | เดินต่อจาก `ticket_counters` + เทส "batch 2 ชุดพร้อมกันเลขไม่ชนไม่ข้าม" + "รายการที่ซ้ำไม่กินเลข" |
+| 70 `asset_fills_in_room_and_building` | P* | ส่งแค่ `asset_id` พอ — `scope` / `room_id` ไม่บังคับ |
+| 71 `permission_to_enter_is_saved` | P | + ใช้กับส่วนกลาง → 400 |
+| 72–74 | P | ไม่ต่าง |
+
+### สิทธิ์ตอนสร้าง (16)
+
+| เคส | ป้ายที่ใช้จริง | สิ่งที่ต่างจากของเดิม |
+|---|---|---|
+| 75–81, 83–86, 90 | P | ไม่ต่าง (76 เพิ่ม admin → 403 ตามตาราง 7) |
+| 77 `layer2_cannot_report_other_room` | P | + **เทสกันข้อมูลรั่ว**: ครุภัณฑ์ห้องอื่นที่มีใบเปิดอยู่ต้องได้ 403 ไม่ใช่ 409 และ body ไม่มี `ticket_no` |
+| 82, 87–88 | X | ใบไม่มี asset — ตกไปตาม DESIGN 12.2 |
+| 89 `retired_asset_is_400` | X | ไม่มี `asset_status` |
+
+### กันแจ้งซ้ำ (10)
+
+| เคส | ป้ายที่ใช้จริง | สิ่งที่ต่างจากของเดิม |
+|---|---|---|
+| 91 `duplicate_single_item_is_409_with_ticket_no` | P* | body เป็น `{ code: DUPLICATE_OPEN_TICKET, details: { skipped: [{ asset_id, ticket_no, ticket_id }] } }` |
+| 92–93 | P | `skipped[]` ไม่มี `index` แล้ว ใช้ `asset_id` ระบุรายการ |
+| 94–95 `resolved_and_pending_parts_still_block` | P | ขยายเป็นทุกค่าใน `OPEN_STATUSES` (5 เคส) |
+| 96–97 `closed_or_rejected_does_not_block` | P | + `cancelled` |
+| 98 `items_without_asset_are_never_duplicates` | X | ใบไม่มี asset |
+| 99–100 เขียนตรงที่ DB | P | อยู่ใน `test/contract/schema-vs-code.spec.ts` ตั้งแต่สัปดาห์ 1 |
+
+เคสใหม่: แจ้งครุภัณฑ์เดียวกันพร้อมกัน 10 request → 201 หนึ่งตัว 409 เก้าตัว · batch 2 ชุดสลับลำดับพร้อมกันไม่ deadlock
+
+### โควตา (5) — เขียนใหม่ทั้งหมด
+
+| เคส | ป้ายที่ใช้จริง | เทสที่มาแทน |
+|---|---|---|
+| 101 `student_daily_limit` | S | ใบเปิดครบ 10 ใบ → 429 `QUOTA_EXCEEDED` |
+| 102 `batch_exceeding_quota_is_rejected_whole` | S | ถูกปฏิเสธทั้งชุด ไม่มีใบ / log / เลขใบค้าง |
+| 103 `skipped_items_do_not_use_quota` | S | รายการที่ซ้ำไม่กินโควตา |
+| 104 `staff_has_no_daily_limit` | S | staff ไม่มีโควตา |
+| 105 `quota_window_is_rolling_24h` | S | ใบที่ closed / rejected / cancelled คืนโควตา — เวลาผ่านไปเฉย ๆ ไม่คืน |
+
+เคสใหม่: นับรวมใบห้องพักกับส่วนกลาง · **batch 2 ชุดพร้อมกันไม่ทะลุ 10 ใบ** (lock แถว `users`)
+
+### same-issue (8)
+
+| เคส | ป้ายที่ใช้จริง | สิ่งที่ต่างจากของเดิม |
+|---|---|---|
+| 106, 108, 110 | P | 108 เพิ่ม rejected / cancelled |
+| 107 `same_issue_by_reporter_is_409` | P* | ผ่าน `ticket_reporters` — code `ALREADY_REPORTED` |
+| 109 `same_issue_on_other_room_is_403` | S | ใบห้องอื่นมองไม่เห็น → **404** |
+| 111 `technician_cannot_press_same_issue` | P | + staff / admin → 403 (student เท่านั้น) |
+| 112 `report_count_over_threshold_escalates_to_urgent` | P* | ไม่มี `sla_due_at` · มี audit `auto_escalate` โดยระบบ |
+| 113 `escalation_never_extends_sla` | X | ไม่มี `sla_due_at` |
+
+เคสใหม่: กดซ้ำคนเดิม → 409 · กดรัวพร้อมกัน 8 ครั้งนับครั้งเดียว · หลายคนกดพร้อมกันไม่มี lost update ·
+ยกระดับครั้งเดียวต่อใบ · ผู้แจ้งที่ย้ายห้อง → 403 ไม่ใช่ 409 · `disputed_at` ของใบส่วนกลางที่ resolved
+
+### visibility (10)
+
+| เคส | ป้ายที่ใช้จริง | สิ่งที่ต่างจากของเดิม |
+|---|---|---|
+| 114 `student_cannot_view_other_room_ticket` | S | **404** และ body เหมือนใบที่ไม่มีอยู่ทุกตัวอักษร |
+| 115, 117, 118, 121 | P | ไม่ต่าง |
+| 116 `technician_sees_only_assigned` | S | **404** |
+| 119 `list_filters` | **B → P\*** | ตัดสินแล้ว: ชุดเดียวกับของเดิม · `building` → `building_id` |
+| 120 `detail_includes_status_logs` | P* | `to_status = open` |
+| 122 `timestamps_are_utc_aware` | P* | ไม่มี `sla_due_at` |
+| 123 `is_overdue_on_sqlite` | X | บั๊กของ SQLite + `sla_due_at` |
+
+เคสใหม่: ผู้แจ้งที่ย้ายห้องยังเห็นใบตัวเอง · ตัวกรองไม่ช่วยให้เห็นใบที่มองไม่เห็น ·
+**`canSee` ตรงกับ `visibilityFilter` ทุกคู่ (ผู้ใช้, ใบ)** · ใบของครุภัณฑ์ที่ถูก soft delete ยังอ่านได้
+
+### เคสของสัปดาห์ก่อนที่เปลี่ยนเพราะคำตอบรอบนี้
+
+| เคส | เดิม | ใหม่ | เหตุผล |
+|---|---|---|---|
+| 59 `staff_assigns_room_then_student_can_report` | P ครึ่งเดียว | **P ครบ** | ครึ่งหลังอยู่ใน `tickets.e2e-spec.ts` |
+| 65 `list_users_filters` | P* (เรียกด้วย admin) | **P** | `GET /users` เปิดให้ staff แล้ว เรียกด้วย staff เหมือนของเดิม |
+
+### สรุปป้ายหลังสัปดาห์ 3
+
+| ป้าย | เคส |
+|---|---|
+| `P` / `P*` | **200** (+1 ข้อ 119 จาก B) |
+| `S` superseded | **31** |
+| `X` ตกไปถาวร | **19** |
+| `B` ยังรอคำตอบ | **2** — 19 (ทำเป็น 401 ไว้ก่อน), 125 (admin ทำ `/assign` ได้หรือไม่ — ต้องตอบก่อนสัปดาห์ 4) |
+| รวม | **252** |
+
+แปลแล้วสะสม: หมวด 8 (10) + หมวด 1 (33) + หมวด 2 (32) + หมวด 3 (58) = **133 จาก 252**
+
 ## TODO ที่เลื่อนออกไป (อนุมัติ 6 ต.ค. 2569)
 
 | เรื่อง | ทำเมื่อไหร่ | หมายเหตุ |
 |---|---|---|
 | ~~entity ของ TypeORM~~ | ~~สัปดาห์ 2~~ | **เสร็จแล้ว** — ครบ 11 ตาราง มี contract test เทียบคอลัมน์กับ DB |
-| เคส 59 ครึ่งหลัง (ผูกห้องแล้วแจ้งห้องได้) | สัปดาห์ 3 | ต้องมี `POST /tickets` |
+| ~~เคส 59 ครึ่งหลัง~~ | ~~สัปดาห์ 3~~ | **เสร็จแล้ว** |
+| `GET /tickets/:id/history` (รวม status log + audit log) | สัปดาห์ 4 | คู่กับเคส 178–179 — สัปดาห์ 3 ส่ง `status_logs` ใน `GET /tickets/:id` ไปก่อน |
+| admin ทำ `/assign` `/reject` ได้หรือไม่ (เคส 125) | ต้องตอบก่อนสัปดาห์ 4 | ตอนนี้ `TicketPolicy` ให้ staff เท่านั้นตามตาราง 7 |
 | `/assign` ต้อง lock แถว `users` ของช่างก่อนมอบงาน | สัปดาห์ 4 | คู่กับการเช็คใบค้างตอนระงับช่าง (DESIGN 4.4) |
 | seed: audit log ของ assign / priority | สัปดาห์ 4 | ทำพร้อม workflow — ตอนนี้ seed เขียน `ticket_audit_logs` แค่ `same_issue` ของใบ disputed |
 | seed: ใบแบบ batch (หลายใบ `batch_id` เดียวกัน) | สัปดาห์ 4 | ตอนนี้ทุกใบมี `batch_id` ของตัวเอง |
