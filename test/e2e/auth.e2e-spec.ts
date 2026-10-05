@@ -8,7 +8,7 @@ import { createTestApp, FakeMailService, resetThrottle, tokenFor } from '../setu
 import { makeUser } from '../setup/factories';
 import { openTestDb, truncateAll } from '../setup/truncate';
 
-const EMAIL = '66070001@kmitl.ac.th';
+const EMAIL = 'demo.s0001@kmitl.ac.th';
 
 // endpoint จำลองสำหรับทดสอบ RolesGuard โดยไม่พึ่งโมดูลอื่น (ของเดิมใช้แอปเล็กแยกด้วยเหตุผลเดียวกัน)
 @Controller('probe')
@@ -118,12 +118,12 @@ describe('auth', () => {
 
     // @parity test_email_is_normalized_to_lowercase — P*: ขอด้วยตัวใหญ่ ยืนยันด้วยตัวเล็ก ได้บัญชีเดียว
     it('อีเมลไม่สนตัวพิมพ์: ขอด้วยตัวใหญ่ ยืนยันด้วยตัวเล็กได้ และได้บัญชีเดียว', async () => {
-      await requestCode('66070001@KMITL.AC.TH').expect(202);
+      await requestCode('demo.s0001@KMITL.AC.TH').expect(202);
       expect(mail.outbox[0].email).toBe(EMAIL);
       await verify(mail.last(), EMAIL).expect(200);
       await passCooldown();
       await requestCode(EMAIL).expect(202);
-      await verify(mail.last(), ' 66070001@Kmitl.ac.th ').expect(200);
+      await verify(mail.last(), ' demo.s0001@Kmitl.ac.th ').expect(200);
       const users: unknown[] = await ds.query(`SELECT 1 FROM users`);
       expect(users).toHaveLength(1);
     });
@@ -146,19 +146,19 @@ describe('auth', () => {
       }
       const res = await requestCode().expect(429);
       expect(Number(res.headers['retry-after'])).toBeGreaterThan(60);
-      await requestCode('66070002@kmitl.ac.th').expect(202);
+      await requestCode('demo.s0002@kmitl.ac.th').expect(202);
     });
 
     // @parity test_request_code_rate_limited_per_ip — เดิมลดเพดานด้วย monkeypatch · ใหม่ยิงครบ 30 จริง
     it('ต่อ IP ไม่เกิน 30 ครั้งต่อชั่วโมง', async () => {
-      for (let i = 0; i < 30; i++) await requestCode(`660710${String(i).padStart(2, '0')}@kmitl.ac.th`).expect(202);
-      const res = await requestCode('66079999@kmitl.ac.th').expect(429);
+      for (let i = 0; i < 30; i++) await requestCode(`demo.s10${String(i).padStart(2, '0')}@kmitl.ac.th`).expect(202);
+      const res = await requestCode('demo.s9999@kmitl.ac.th').expect(429);
       expect(res.body.code).toBe('RATE_LIMITED');
       expect(mail.outbox).toHaveLength(30);
     });
 
     it('เพดานต่อ IP ไม่ใช่ 5: คนที่ 6 ของหอ (IP เดียวกัน) ยังขอรหัสได้', async () => {
-      for (let i = 1; i <= 6; i++) await requestCode(`6607200${i}@kmitl.ac.th`).expect(202);
+      for (let i = 1; i <= 6; i++) await requestCode(`demo.s200${i}@kmitl.ac.th`).expect(202);
     });
 
     // @parity test_rate_limit_window_expires
@@ -187,7 +187,7 @@ describe('auth', () => {
 
       // ทำหลายรอบ: race เกิดไม่ทุกครั้ง รอบเดียวอาจผ่านเพราะโชค
       for (let round = 0; round < 5; round++) {
-        const email = `6607400${round}@kmitl.ac.th`;
+        const email = `demo.s400${round}@kmitl.ac.th`;
         const results = await Promise.all(Array.from({ length: 10 }, () => requestCode(email)));
         expect(results.map((r) => r.status).sort()).toEqual([202, ...Array<number>(9).fill(429)]);
         const rows: unknown[] = await ds.query(`SELECT 1 FROM login_codes WHERE email = $1`, [email]);
@@ -359,7 +359,8 @@ describe('auth', () => {
     });
 
     it('ต่อ IP ยืนยันได้ไม่เกิน 60 ครั้งต่อชั่วโมง', async () => {
-      for (let i = 0; i < 60; i++) await verify('000000', `66073${String(i).padStart(3, '0')}@kmitl.ac.th`).expect(401);
+      for (let i = 0; i < 60; i++)
+        await verify('000000', `demo.s3${String(i).padStart(3, '0')}@kmitl.ac.th`).expect(401);
       const res = await verify('000000', 'last@kmitl.ac.th').expect(429);
       expect(res.body).toMatchObject({ statusCode: 429, error: 'Too Many Requests', code: 'RATE_LIMITED' });
     });

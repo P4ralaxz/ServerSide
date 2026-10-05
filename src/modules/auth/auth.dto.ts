@@ -4,13 +4,13 @@ import { IsUniversityEmail } from '../../common/validation/university-email';
 import { UserView } from '../users/user.view';
 
 export class RequestCodeDto {
-  @ApiProperty({ example: '66070001@kmitl.ac.th' })
+  @ApiProperty({ example: 'demo.s0001@kmitl.ac.th' })
   @IsUniversityEmail()
   email: string;
 }
 
 export class VerifyCodeDto {
-  @ApiProperty({ example: '66070001@kmitl.ac.th' })
+  @ApiProperty({ example: 'demo.s0001@kmitl.ac.th' })
   @IsUniversityEmail()
   email: string;
 

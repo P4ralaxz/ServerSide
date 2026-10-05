@@ -1,5 +1,6 @@
 import '../../src/common/time/utc';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { randomBytes } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import { dataSourceOptions } from '../../src/database/data-source';
 
@@ -13,8 +14,9 @@ export default async function globalSetup(): Promise<void> {
   // ตั้งทุกค่าที่แอปต้องใช้ที่นี่ — เทสต้องรันได้บนเครื่องที่ไม่มีไฟล์ .env และไม่ขึ้นกับค่าในไฟล์นั้น
   process.env.DATABASE_URL = container.getConnectionUri();
   process.env.NODE_ENV = 'test';
-  process.env.JWT_SECRET = 'test-jwt-secret-0123456789abcdef0123456789';
-  process.env.OTP_SECRET = 'test-otp-secret-fedcba9876543210fedcba9876';
+  // สุ่มใหม่ทุกครั้งที่รันเทส — ไม่มีค่า secret เขียนค้างไว้ใน repo แม้จะเป็นค่าของเทส
+  process.env.JWT_SECRET = randomBytes(32).toString('hex');
+  process.env.OTP_SECRET = randomBytes(32).toString('hex');
   process.env.JWT_EXPIRES_IN = '8h';
 
   const ds = new DataSource(dataSourceOptions(process.env.DATABASE_URL));

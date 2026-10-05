@@ -219,14 +219,14 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
       people.push({ id, role, roomId });
     };
 
-    await addUser('admin@kmitl.ac.th', 'ผู้ดูแลระบบ', 'admin');
-    for (let i = 1; i <= 2; i++) await addUser(`staff${i}@kmitl.ac.th`, `เจ้าหน้าที่หอพัก คนที่ ${i}`, 'staff');
-    for (let i = 1; i <= 3; i++) await addUser(`tech${i}@kmitl.ac.th`, `ช่างซ่อมบำรุง คนที่ ${i}`, 'technician');
+    await addUser('demo.admin@kmitl.ac.th', 'ผู้ดูแลระบบ', 'admin');
+    for (let i = 1; i <= 2; i++) await addUser(`demo.staff${i}@kmitl.ac.th`, `เจ้าหน้าที่หอพัก คนที่ ${i}`, 'staff');
+    for (let i = 1; i <= 3; i++) await addUser(`demo.tech${i}@kmitl.ac.th`, `ช่างซ่อมบำรุง คนที่ ${i}`, 'technician');
     // ห้องละ 2 คน 3 ห้องแรกของแต่ละอาคาร (รูมเมทยืนยันแทนกันได้) + 2 คนที่ยังไม่ถูกผูกห้อง
     const housedRooms = buildingCodes.flatMap((code) => rooms.filter((r) => r.buildingCode === code).slice(0, 3));
     for (let i = 1; i <= 14; i++) {
       const room = i <= 12 ? housedRooms[Math.floor((i - 1) / 2)].id : null;
-      await addUser(`660700${String(i).padStart(2, '0')}@kmitl.ac.th`, `นักศึกษา คนที่ ${i}`, 'student', room);
+      await addUser(`demo.s00${String(i).padStart(2, '0')}@kmitl.ac.th`, `นักศึกษา คนที่ ${i}`, 'student', room);
     }
 
     const students = people.filter((p) => p.role === 'student');

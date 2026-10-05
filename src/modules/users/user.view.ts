@@ -7,7 +7,7 @@ export class UserView {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
-  @ApiProperty({ example: '66070001@kmitl.ac.th' })
+  @ApiProperty({ example: 'demo.s0001@kmitl.ac.th' })
   email: string;
 
   @ApiProperty({ type: String, nullable: true })
