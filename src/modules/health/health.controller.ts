@@ -1,12 +1,14 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiServiceUnavailableResponse, ApiTags } from '@nestjs/swagger';
 import { DataSource } from 'typeorm';
+import { Public } from '../../common/auth/decorators';
 
 @ApiTags('health')
 @Controller('health')
 export class HealthController {
   constructor(private readonly dataSource: DataSource) {}
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'ตรวจว่าแอปและฐานข้อมูลพร้อมใช้งาน' })
   @ApiOkResponse({ schema: { example: { status: 'ok', db: 'up' } } })
