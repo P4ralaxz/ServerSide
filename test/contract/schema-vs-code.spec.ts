@@ -103,6 +103,7 @@ describe('schema ↔ code contract', () => {
       ['ck_permission_scope', 'tickets'],
       ['ck_users_email_domain', 'users'],
       ['ck_rooms_capacity', 'rooms'],
+      ['ck_technician_no_room', 'users'],
     ])('CHECK %s บนตาราง %s', async (name, table) => {
       const rows: { tbl: string }[] = await ds.query(
         `SELECT c.conrelid::regclass::text AS tbl FROM pg_constraint c WHERE c.conname = $1 AND c.contype = 'c'`,
@@ -153,6 +154,50 @@ describe('schema ↔ code contract', () => {
         building,
       ]);
       expect(await constraintOf(p)).toBe('ck_rooms_capacity');
+    });
+
+    // ด่านสุดท้ายของ DESIGN 4.4 — API เช็คก่อนอยู่แล้ว แต่ถ้าโค้ดพลาด DB ต้องไม่รับ
+    it('ช่างผูกห้องไม่ได้ ทั้งตอนสร้างและตอนแก้', async () => {
+      expect(await constraintOf(makeUser(ds, { role: 'technician', roomId: room }))).toBe('ck_technician_no_room');
+      expect(await constraintOf(ds.query(`UPDATE users SET role = 'technician' WHERE id = $1`, [student]))).toBe(
+        'ck_technician_no_room',
+      );
+      await expect(makeUser(ds, { role: 'technician' })).resolves.toBeDefined();
+      await expect(makeUser(ds, { role: 'staff', roomId: room })).resolves.toBeDefined();
+    });
+  });
+
+  // synchronize ปิดอยู่ จึงไม่มีอะไรเทียบ entity กับตารางให้ — ถ้าคอลัมน์ใน entity สะกดผิดจะรู้ตอน query แรกบน production
+  describe('entity ของ TypeORM ตรงกับตารางจริง', () => {
+    it('ทุกตารางใน migration มี entity และไม่มี entity ที่ชี้ตารางที่ไม่มีอยู่', async () => {
+      const rows: { tablename: string }[] = await ds.query(
+        `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'migrations'`,
+      );
+      expect(ds.entityMetadatas.map((m) => m.tableName).sort()).toEqual(rows.map((r) => r.tablename).sort());
+    });
+
+    it('คอลัมน์ของทุก entity ตรงกับคอลัมน์ในตาราง ทั้งชื่อ ชนิด และ nullable', async () => {
+      const rows: { table_name: string; column_name: string; udt_name: string; is_nullable: string }[] = await ds.query(
+        `SELECT table_name, column_name, udt_name, is_nullable FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name <> 'migrations'`,
+      );
+      // ชื่อชนิดฝั่ง TypeORM → udt_name ของ Postgres
+      const udt: Record<string, string> = { int: 'int4', bigint: 'int8', boolean: 'bool' };
+
+      for (const meta of ds.entityMetadatas) {
+        const actual = rows
+          .filter((r) => r.table_name === meta.tableName)
+          .map((r) => `${r.column_name} ${r.udt_name} ${r.is_nullable === 'YES' ? 'null' : 'not null'}`)
+          .sort();
+        const declared = meta.columns
+          .map((c) => {
+            const type = c.type === 'enum' ? (c.enumName ?? '?') : String(c.type);
+            const nullable = c.isNullable || c.isDeleteDate;
+            return `${c.databaseName} ${udt[type] ?? type} ${nullable ? 'null' : 'not null'}`;
+          })
+          .sort();
+        expect({ table: meta.tableName, columns: declared }).toEqual({ table: meta.tableName, columns: actual });
+      }
     });
   });
 
