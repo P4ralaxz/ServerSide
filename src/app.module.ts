@@ -15,6 +15,10 @@ import { BuildingsService } from './modules/buildings/buildings.service';
 import { HealthController } from './modules/health/health.controller';
 import { RoomsController } from './modules/rooms/rooms.controller';
 import { RoomsService } from './modules/rooms/rooms.service';
+import { TicketCreationService } from './modules/tickets/ticket-creation.service';
+import { TicketPolicy } from './modules/tickets/ticket-policy.service';
+import { TicketQueryService } from './modules/tickets/ticket-query.service';
+import { TicketsController } from './modules/tickets/tickets.controller';
 import { UsersController } from './modules/users/users.controller';
 import { UsersService } from './modules/users/users.service';
 
@@ -29,12 +33,22 @@ import { UsersService } from './modules/users/users.service';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     AuthModule,
   ],
-  controllers: [HealthController, UsersController, BuildingsController, RoomsController, AssetsController],
+  controllers: [
+    HealthController,
+    UsersController,
+    BuildingsController,
+    RoomsController,
+    AssetsController,
+    TicketsController,
+  ],
   providers: [
     UsersService,
     BuildingsService,
     RoomsService,
     AssetsService,
+    TicketPolicy,
+    TicketCreationService,
+    TicketQueryService,
     // ลำดับสำคัญ: guard รันตามลำดับที่ลงทะเบียน — RolesGuard ต้องมาหลัง JwtAuthGuard เพราะอ่าน user ที่ guard นั้นโหลดไว้
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
