@@ -49,12 +49,22 @@ export const ENDPOINTS = [
   '/cancel',
   '/schedule',
   '/priority',
+  '/same-issue',
   'system:auto-close',
 ] as const;
 export type Endpoint = (typeof ENDPOINTS)[number];
 
 export type TicketAction =
-  'assign' | 'change_status' | 'reject' | 'confirm' | 'reopen' | 'cancel' | 'schedule' | 'set_priority' | 'auto_close';
+  | 'assign'
+  | 'change_status'
+  | 'reject'
+  | 'confirm'
+  | 'reopen'
+  | 'cancel'
+  | 'schedule'
+  | 'set_priority'
+  | 'same_issue'
+  | 'auto_close';
 
 // สถานะปลายทางเดียวกันมาได้จากหลาย endpoint ที่ใช้สิทธิ์คนละชุด
 //   assigned ← /assign (staff) และ /reopen (ผู้พัก/staff)
@@ -70,6 +80,7 @@ export const VIA_ACTION: Record<Endpoint, TicketAction> = {
   '/cancel': 'cancel',
   '/schedule': 'schedule',
   '/priority': 'set_priority',
+  '/same-issue': 'same_issue',
   'system:auto-close': 'auto_close',
 };
 
