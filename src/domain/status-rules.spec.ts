@@ -1,13 +1,19 @@
 import { TICKET_STATUSES, TicketStatus, USER_ROLES } from './enums';
 import {
   Actor,
+  actorOf,
+  ASSIGNABLE_STATUSES,
+  canGoVia,
   canTransition,
-  DEDICATED_ENDPOINTS,
   ENDPOINTS,
   isOpenStatus,
   NOTE_REQUIRED,
   OPEN_STATUSES,
+  TRANSITION_ONLY_VIA,
   TRANSITIONS,
+  transitionKey,
+  UI_ACTION_CALL,
+  UI_ACTIONS,
   VIA_ACTION,
 } from './status-rules';
 
@@ -60,9 +66,89 @@ describe('status machine', () => {
     expect([...NOTE_REQUIRED].sort()).toEqual(['pending_parts', 'rejected']);
   });
 
-  it('ปลายทางที่มี endpoint เฉพาะ ต้องเป็นปลายทางที่มีอยู่จริงในตารางกฎ', () => {
-    const reachable = new Set(TICKET_STATUSES.flatMap((s) => Object.keys(TRANSITIONS[s]) as TicketStatus[]));
-    for (const to of Object.keys(DEDICATED_ENDPOINTS)) expect(reachable.has(to as TicketStatus)).toBe(true);
+  it('ทุกคู่ใน TRANSITION_ONLY_VIA ต้องเป็นเส้นทางที่มีอยู่จริงในตารางกฎ และชี้ไป endpoint ที่มีจริง', () => {
+    for (const [key, endpoints] of Object.entries(TRANSITION_ONLY_VIA)) {
+      const [from, to] = key.split('->') as [TicketStatus, TicketStatus];
+      expect(TRANSITIONS[from][to]).toBeDefined();
+      expect(endpoints?.length).toBeGreaterThan(0);
+      for (const e of endpoints ?? []) expect(ENDPOINTS).toContain(e);
+    }
+  });
+});
+
+describe('TRANSITION_ONLY_VIA', () => {
+  // mutation check: ลบคู่นี้ออกแล้วเทสนี้ต้องแดง — Staff จะกด /assign กับใบ resolved ได้
+  it('resolved → assigned ไปได้ทาง /reopen เท่านั้น ไม่ใช่ /assign', () => {
+    expect(canGoVia('resolved', 'assigned', '/reopen', 'staff')).toBe(true);
+    expect(canGoVia('resolved', 'assigned', '/assign', 'staff')).toBe(false);
+    expect(canGoVia('resolved', 'assigned', '/status', 'staff')).toBe(false);
+  });
+
+  it('resolved → closed ไปได้ทาง /confirm และ job ปิดอัตโนมัติ แต่ไม่ใช่ /status', () => {
+    expect(canGoVia('resolved', 'closed', '/confirm', 'staff')).toBe(true);
+    expect(canGoVia('resolved', 'closed', 'system:auto-close', 'system')).toBe(true);
+    expect(canGoVia('resolved', 'closed', '/status', 'staff')).toBe(false);
+  });
+
+  it('ยกเลิกและไม่รับเรื่องไปได้ทาง endpoint ของตัวเองเท่านั้น', () => {
+    expect(canGoVia('open', 'cancelled', '/cancel', 'student')).toBe(true);
+    expect(canGoVia('open', 'cancelled', '/status', 'student')).toBe(false);
+    expect(canGoVia('open', 'rejected', '/reject', 'staff')).toBe(true);
+    expect(canGoVia('open', 'rejected', '/status', 'staff')).toBe(false);
+    expect(canGoVia('assigned', 'rejected', '/status', 'staff')).toBe(false);
+  });
+
+  it('เส้นทางที่ไม่อยู่ในตารางนี้ ใช้ endpoint ไหนก็ได้เท่าที่ตารางกฎยอม', () => {
+    expect(TRANSITION_ONLY_VIA[transitionKey('open', 'assigned')]).toBeUndefined();
+    expect(canGoVia('open', 'assigned', '/assign', 'staff')).toBe(true);
+    expect(canGoVia('in_progress', 'resolved', '/status', 'technician')).toBe(true);
+  });
+
+  it('/assign รับได้ตั้งแต่ open ถึง pending_parts แต่ไม่รับใบ resolved', () => {
+    expect([...ASSIGNABLE_STATUSES].sort()).toEqual(['assigned', 'in_progress', 'open', 'pending_parts']);
+  });
+});
+
+describe('actorOf (admin ⊇ staff)', () => {
+  it('admin ถือสิทธิ์เป็น staff ในตารางกฎ', () => {
+    expect(actorOf({ role: 'admin' })).toBe('staff');
+    expect(canTransition('open', 'assigned', actorOf({ role: 'admin' }))).toBe(true);
+    expect(canTransition('open', 'rejected', actorOf({ role: 'admin' }))).toBe(true);
+  });
+
+  it('role อื่นไม่ถูกแปลง และ null = ระบบ', () => {
+    for (const role of ['student', 'technician', 'staff'] as const) expect(actorOf({ role })).toBe(role);
+    expect(actorOf(null)).toBe('system');
+  });
+
+  it('admin ไม่ได้กลายเป็น student — จึง reopen/confirm ใบห้องพักไม่ได้ที่ชั้นสถานะ', () => {
+    expect(actorOf({ role: 'admin' })).not.toBe('student');
+  });
+});
+
+describe('UI_ACTION_CALL', () => {
+  it('ทุกปุ่มชี้ไป endpoint ที่มีจริง', () => {
+    for (const a of UI_ACTIONS) expect(ENDPOINTS).toContain(UI_ACTION_CALL[a].endpoint);
+  });
+
+  it('ปุ่มของช่างทั้งสี่ยิง /status และแยกกันด้วยขั้นปัจจุบัน', () => {
+    for (const a of ['start', 'pending_parts', 'resume', 'resolve'] as const) {
+      expect(UI_ACTION_CALL[a].endpoint).toBe('/status');
+      expect(UI_ACTION_CALL[a].from).toBeDefined();
+    }
+    // start กับ resume ไปที่ in_progress ทั้งคู่ — แยกออกจากกันได้ด้วย from เท่านั้น
+    expect(UI_ACTION_CALL.start.to).toBe(UI_ACTION_CALL.resume.to);
+    expect(UI_ACTION_CALL.start.from).not.toEqual(UI_ACTION_CALL.resume.from);
+  });
+
+  it('ปุ่มที่เป็นการเปลี่ยนขั้น ต้องเป็นเส้นทางที่มีจริงในตารางกฎ', () => {
+    for (const a of UI_ACTIONS) {
+      const call = UI_ACTION_CALL[a];
+      if (call.to === undefined) continue;
+      const froms = call.from ?? TICKET_STATUSES.filter((s) => TRANSITIONS[s][call.to!]);
+      expect(froms.length).toBeGreaterThan(0);
+      for (const from of froms) expect(TRANSITIONS[from][call.to]).toBeDefined();
+    }
   });
 });
 
