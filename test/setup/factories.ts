@@ -71,6 +71,9 @@ export interface TicketInput {
   closedAt?: Date | null;
   closeReason?: string | null;
   deletedAt?: Date | null;
+  scheduledAt?: Date | null;
+  disputedAt?: Date | null;
+  reopenCount?: number;
   priority?: TicketPriority;
   reportCount?: number;
   ticketNo?: string;
@@ -81,8 +84,8 @@ export const makeTicket = async (ds: DataSource, o: TicketInput): Promise<string
   await ds.query(
     `INSERT INTO tickets (id, ticket_no, batch_id, asset_id, scope, room_id, reporter_id, status, title,
                           permission_to_enter, resolved_at, closed_at, close_reason, deleted_at, assigned_to,
-                          priority, report_count)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ทดสอบ', $9, $10, $11, $12, $13, $14, $15, $16)`,
+                          priority, report_count, scheduled_at, disputed_at, reopen_count)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ทดสอบ', $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
     [
       id,
       o.ticketNo ?? `TK-TEST-${String(next()).padStart(6, '0')}`,
@@ -100,6 +103,9 @@ export const makeTicket = async (ds: DataSource, o: TicketInput): Promise<string
       o.assignedTo ?? null,
       o.priority ?? 'normal',
       o.reportCount ?? 1,
+      o.scheduledAt ?? null,
+      o.disputedAt ?? null,
+      o.reopenCount ?? 0,
     ],
   );
   // ผู้แจ้งนับเป็นคนแรกใน ticket_reporters เหมือนใบที่สร้างผ่าน API

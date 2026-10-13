@@ -291,8 +291,15 @@ describe('tickets', () => {
     });
 
     // @parity test_layer1_technician_cannot_report
-    it.each(['tech', 'admin'] as const)('ชั้น 1: %s แจ้งซ่อมไม่ได้ → 403', async (who) => {
-      expect((await post(dorm[who], item(dorm.lift1))).status).toBe(403);
+    it('ชั้น 1: ช่างแจ้งซ่อมไม่ได้ → 403', async () => {
+      expect((await post(dorm.tech, item(dorm.lift1))).status).toBe(403);
+    });
+
+    // เปลี่ยนจากสัปดาห์ 3 (เดิมคาด 403): admin ⊇ staff ตาม DESIGN 12.1
+    // และ 6.3 ยกเว้นโควตาให้ staff/admin อยู่แล้ว = ตั้งใจให้ admin แจ้งใบส่วนกลางได้
+    it('admin แจ้งใบส่วนกลางได้เหมือน staff แต่แจ้งห้องคนอื่นไม่ได้', async () => {
+      expect((await post(dorm.admin, item(dorm.lift1))).status).toBe(201);
+      expect((await post(dorm.admin, item(dorm.ac1))).status).toBe(403);
     });
 
     // @parity test_layer2_cannot_report_other_room — เทสหลักของกฎข้อ 3
@@ -987,14 +994,30 @@ describe('tickets', () => {
       await http().get(`/tickets/${NOBODY}`).expect(401);
     });
 
-    // @parity test_detail_includes_status_logs — P*: to_status = open
-    it('รายละเอียดใบมี status_logs เรียงตามเวลา', async () => {
+    // @parity test_detail_includes_status_logs — S: ประวัติย้ายไป GET /tickets/:id/history (DESIGN 7.3)
+    // รายละเอียดใบเลิกส่ง status_logs แล้ว หน้าจอเรียกประวัติแยก
+    it('รายละเอียดใบไม่ส่ง status_logs แล้ว — ประวัติอยู่ที่ /history', async () => {
       const id = (await post(dorm.alice, item(dorm.ac1))).body.created[0].id as string;
       const detail = (await get(dorm.alice, id)).body;
-      expect(detail.status_logs).toEqual([
-        { from_status: null, to_status: 'open', actor_id: dorm.alice, note: null, created_at: expect.any(String) },
-      ]);
+      expect(detail.status_logs).toBeUndefined();
       expect(detail).toMatchObject({ id, asset_id: dorm.ac1, building_id: dorm.d1 });
+
+      const history = (
+        await http()
+          .get(`/tickets/${id}/history`)
+          .set(await bearer(app, dorm.alice))
+      ).body;
+      expect(history).toEqual([
+        {
+          kind: 'status',
+          at: expect.any(String),
+          actor: { id: dorm.alice, name: null },
+          from_status: null,
+          to_status: 'open',
+          note: null,
+          duration_seconds: expect.any(Number),
+        },
+      ]);
     });
 
     // @parity test_soft_deleted_ticket_is_404

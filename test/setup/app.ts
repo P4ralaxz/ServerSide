@@ -6,17 +6,31 @@ import { AppModule } from '../../src/app.module';
 import { configureApp } from '../../src/app.setup';
 import { MailService } from '../../src/modules/auth/mail.service';
 
+interface ResolvedMailRecord {
+  email: string;
+  ticketNo: string;
+  note: string | null;
+  autoCloseAt: Date | null;
+  link: string;
+  where: string;
+}
+
 // ตัวแทน MailService ใน e2e: ไม่ส่งเมลจริง เก็บรหัสไว้ให้เทสอ่านแทนการเปิดกล่องเมล
 export class FakeMailService {
   outbox: { email: string; code: string }[] = [];
+  // เมลแจ้งผลซ่อม (DESIGN 6.10) — เทสเช็คว่าผู้รับถูกคน และไม่มีเมลออกเมื่อทรานแซกชัน rollback
+  resolvedOutbox: ResolvedMailRecord[] = [];
   // ตั้งเพื่อจำลอง SMTP ล่ม / ค้าง
   mode: 'ok' | 'fail' | 'hang' = 'ok';
 
   sendLoginCode(email: string, code: string): Promise<void> {
     this.outbox.push({ email, code });
-    if (this.mode === 'fail') return Promise.reject(new Error('SMTP ล่ม (จำลอง)'));
-    if (this.mode === 'hang') return new Promise(() => undefined);
-    return Promise.resolve();
+    return this.result();
+  }
+
+  sendTicketResolved(email: string, info: Omit<ResolvedMailRecord, 'email'>): Promise<void> {
+    this.resolvedOutbox.push({ email, ...info });
+    return this.result();
   }
 
   last(): string {
@@ -25,9 +39,20 @@ export class FakeMailService {
     return entry.code;
   }
 
+  resolvedRecipients(): string[] {
+    return this.resolvedOutbox.map((m) => m.email).sort();
+  }
+
   reset(): void {
     this.outbox = [];
+    this.resolvedOutbox = [];
     this.mode = 'ok';
+  }
+
+  private result(): Promise<void> {
+    if (this.mode === 'fail') return Promise.reject(new Error('SMTP ล่ม (จำลอง)'));
+    if (this.mode === 'hang') return new Promise(() => undefined);
+    return Promise.resolve();
   }
 }
 
