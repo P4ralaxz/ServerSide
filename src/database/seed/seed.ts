@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { DataSource, EntityManager } from 'typeorm';
 import { formatTicketNo, thaiBuddhistYear } from '../../common/time/thai-year';
-import { CloseReason, TicketPriority, TicketScope, TicketStatus, UserRole } from '../../domain/enums';
+import { AuditAction, CloseReason, TicketPriority, TicketScope, TicketStatus, UserRole } from '../../domain/enums';
 import { isOpenStatus } from '../../domain/status-rules';
 import { dataSourceOptions } from '../data-source';
 
@@ -255,6 +255,10 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
       reopenCount: number;
       updatedAt: Date;
       logs: { from: TicketStatus | null; to: TicketStatus; actorId: string | null; note: string | null; at: Date }[];
+      // สิ่งที่ขั้นไม่เปลี่ยน (DESIGN 3.2) — รายงานและหน้าประวัติต้องมีของจริงให้แสดงตอนเดโม
+      audits: { action: AuditAction; actorId: string | null; detail: Record<string, unknown>; at: Date }[];
+      // ใบที่แจ้งพร้อมกันในคำขอเดียวใช้ค่าเดียวกัน — ไม่ระบุ = ใบเดี่ยว
+      batchId: string | null;
       secondReporter: Person | null;
     }
 
@@ -267,11 +271,14 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
         const finalStatus = sc.steps.at(-1)?.to ?? 'open';
         const needsFree = isOpenStatus(finalStatus);
 
+        // ใบที่จบด้วยการถอนคำแจ้งต้องมีผู้แจ้งเป็นนักศึกษา: /cancel เป็นสิทธิ์ของ student เท่านั้น (DESIGN 3.5)
+        // ถ้าปล่อยให้ staff เป็นผู้แจ้งใบส่วนกลางที่ถูกยกเลิก seed จะมี log ที่ API สร้างไม่ได้
+        const cancelled = sc.steps.some((s) => s.to === 'cancelled');
         let reporter: Person;
         let asset: Asset | undefined;
         for (let tries = 0; !asset; tries++) {
           if (tries > 200) throw new Error('ครุภัณฑ์ว่างไม่พอสำหรับ scenario ที่กำหนด');
-          reporter = sc.scope === 'room' ? pick(housed) : pick(rng() < 0.2 ? staff : students);
+          reporter = sc.scope === 'room' ? pick(housed) : pick(!cancelled && rng() < 0.2 ? staff : students);
           const pool = sc.scope === 'room' ? assets.filter((a) => a.roomId === reporter.roomId) : commonAssets;
           const candidate = pick(pool);
           if (!needsFree || !busy.has(candidate.id)) asset = candidate;
@@ -302,16 +309,43 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
           reopenCount: 0,
           updatedAt: at,
           logs: [{ from: null, to: 'open', actorId: reporter!.id, note: null, at }],
+          audits: [],
+          batchId: null,
           secondReporter: null,
         };
+
+        // Staff ปรับความด่วนหลังอ่านเรื่อง — ใบที่ไม่ใช่ normal ต้องมีร่องรอยว่าใครปรับ ไม่ใช่โผล่มาเอง
+        if (t.priority !== 'normal') {
+          t.audits.push({
+            action: 'priority',
+            actorId: pick(staff).id,
+            detail: { from: 'normal', to: t.priority },
+            at: new Date(at.getTime() + 0.3 * HOUR),
+          });
+        }
 
         sc.steps.forEach((step, idx) => {
           at = new Date(at.getTime() + waits[idx] * HOUR);
           const from = t.status;
           if (step.to === 'assigned' && from === 'open') {
             t.assignedTo = pick(techs).id;
+            // มอบหมายครั้งแรกลง audit assign คู่กับ status log — /assign ของจริงเขียนสองที่เหมือนกัน (DESIGN 6.9)
+            t.audits.push({
+              action: 'assign',
+              actorId: pick(staff).id,
+              detail: { from: null, to: t.assignedTo },
+              at,
+            });
             // ใบห้องพักที่ผู้แจ้งไม่อนุญาตให้เข้าห้อง ต้องมีนัดก่อนช่างเริ่มงานได้ (DESIGN 6.7)
-            if (sc.scope === 'room' && !t.permissionToEnter) t.scheduledAt = new Date(at.getTime() + HOUR);
+            if (sc.scope === 'room' && !t.permissionToEnter) {
+              t.scheduledAt = new Date(at.getTime() + HOUR);
+              t.audits.push({
+                action: 'schedule',
+                actorId: t.assignedTo,
+                detail: { from: null, to: t.scheduledAt.toISOString() },
+                at: new Date(at.getTime() + 0.2 * HOUR),
+              });
+            }
           }
           if (step.to === 'assigned' && from === 'resolved') {
             t.resolvedAt = null;
@@ -348,6 +382,42 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
       }
     }
 
+    // ---- ใบแบบ batch: แจ้งหลายรายการในคำขอเดียว = หลายใบที่ batch_id เดียวกัน (กฎข้อ 1) ----
+    // ต้องมีของจริงใน seed ไม่งั้นหน้า "ส่งแจ้งซ่อมแล้ว" และการกรองด้วย batch_id ไม่มีอะไรให้ทดสอบ
+    const batchReporter = housed.find(
+      (p) => assets.filter((a) => a.roomId === p.roomId && !busy.has(a.id)).length >= 2,
+    );
+    if (batchReporter) {
+      const batchId = randomUUID();
+      const at = new Date(now.getTime() - between([2, 20]) * HOUR);
+      for (const asset of assets.filter((a) => a.roomId === batchReporter.roomId && !busy.has(a.id)).slice(0, 2)) {
+        busy.add(asset.id);
+        planned.push({
+          id: randomUUID(),
+          asset,
+          scope: 'room',
+          reporter: batchReporter,
+          createdAt: at,
+          status: 'open',
+          priority: 'normal',
+          assignedTo: null,
+          permissionToEnter: true,
+          scheduledAt: null,
+          resolvedAt: null,
+          closedAt: null,
+          confirmedBy: null,
+          closeReason: null,
+          disputedAt: null,
+          reopenCount: 0,
+          updatedAt: at,
+          logs: [{ from: null, to: 'open', actorId: batchReporter.id, note: null, at }],
+          audits: [],
+          batchId,
+          secondReporter: null,
+        });
+      }
+    }
+
     // ---- เขียนลง DB เรียงตามเวลาแจ้ง: เลขใบต้องเดินตามเวลา และปี พ.ศ. คิดตามเวลาไทย ----
     planned.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
     const counters = new Map<number, number>();
@@ -365,7 +435,7 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
         [
           t.id,
           formatTicketNo(beYear, seq),
-          randomUUID(),
+          t.batchId ?? randomUUID(),
           t.asset.id,
           t.scope,
           t.scope === 'room' ? t.asset.roomId : null,
@@ -394,6 +464,13 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
           `INSERT INTO ticket_status_logs (ticket_id, from_status, to_status, actor_id, note, created_at)
            VALUES ($1, $2, $3, $4, $5, $6)`,
           [t.id, l.from, l.to, l.actorId, l.note, l.at],
+        );
+      }
+
+      for (const a of t.audits) {
+        await m.query(
+          `INSERT INTO ticket_audit_logs (ticket_id, action, actor_id, detail, created_at) VALUES ($1, $2, $3, $4, $5)`,
+          [t.id, a.action, a.actorId, JSON.stringify(a.detail), a.at],
         );
       }
 

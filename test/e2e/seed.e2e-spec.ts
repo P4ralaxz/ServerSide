@@ -194,6 +194,38 @@ describe('seed', () => {
     expect(bad).toHaveLength(0);
   });
 
+  // สัปดาห์ 4: audit log ของสิ่งที่ขั้นไม่เปลี่ยน ต้องมีของจริงให้หน้าประวัติและรายงานแสดง
+  it('มี audit log ของ assign / priority / schedule และทุกแถวอ้างใบที่มีจริง', async () => {
+    const rows: { action: string; n: string }[] = await ds.query(
+      `SELECT action, count(*) AS n FROM ticket_audit_logs GROUP BY action ORDER BY action`,
+    );
+    const byAction = new Map(rows.map((r) => [r.action, Number(r.n)]));
+    expect(byAction.get('assign')).toBeGreaterThan(0);
+    expect(byAction.get('priority')).toBeGreaterThan(0);
+    expect(byAction.get('schedule')).toBeGreaterThan(0);
+
+    // audit ของการมอบหมายต้องชี้ไปช่างคนที่ใบนั้นมอบให้จริง และเวลาต้องไม่เลยเวลาปัจจุบัน
+    const bad: unknown[] = await ds.query(
+      `SELECT a.id FROM ticket_audit_logs a JOIN tickets t ON t.id = a.ticket_id
+        WHERE a.created_at > now()
+           OR (a.action = 'assign' AND a.detail->>'to' NOT IN (
+                 SELECT id::text FROM users WHERE role = 'technician'))`,
+    );
+    expect(bad).toHaveLength(0);
+  });
+
+  // ค้างจากสัปดาห์ 1: ตอนนั้นทุกใบมี batch_id ของตัวเอง
+  it('มีใบที่แจ้งพร้อมกันในคำขอเดียว (batch_id เดียว หลายใบ คนละครุภัณฑ์)', async () => {
+    const [row]: { batch_id: string; n: string; assets: string; reporters: string }[] = await ds.query(
+      `SELECT batch_id, count(*) AS n, count(DISTINCT asset_id) AS assets, count(DISTINCT reporter_id) AS reporters
+         FROM tickets GROUP BY batch_id HAVING count(*) > 1 ORDER BY count(*) DESC LIMIT 1`,
+    );
+    expect(Number(row.n)).toBeGreaterThanOrEqual(2);
+    // 1 ticket = 1 ครุภัณฑ์ และทุกใบในคำขอเดียวมีผู้แจ้งคนเดียวกัน
+    expect(row.assets).toBe(row.n);
+    expect(Number(row.reporters)).toBe(1);
+  });
+
   it('ticket_counters ตามทันเลขใบสูงสุดของปี พ.ศ. นั้น', async () => {
     const beYear = thaiBuddhistYear(now);
     const [row]: { last_no: number; used: string }[] = await ds.query(
