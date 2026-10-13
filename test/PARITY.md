@@ -25,7 +25,7 @@
 | `X` | **ตกไป** — ฟีเจอร์/คอลัมน์ที่ DESIGN ไม่มี ไม่มีที่ลง |
 | `B` | **blocked** — รอคำตอบ DESIGN หัวข้อ 12 หรือคำถามในรายงาน |
 
-ยังไม่แปลเลยแม้ข้อเดียว — ทุกช่อง "แปลแล้ว" ว่างทั้งหมด
+สถานะล่าสุด (13 ต.ค. 2569 จบสัปดาห์ 4): แปลแล้ว 185 จาก 252 — เหลือหมวด 5 (auto-close), 6 (reports), 7 (QR/scan) และ reopen
 
 ---
 
@@ -241,7 +241,7 @@
 | # | เทสเดิม | ป้าย | หมายเหตุ |
 |---|---|---|---|
 | 124 | `test_staff_assigns_technician_and_writes_log` | P | |
-| 125 | `test_admin_can_assign_too` | **B** | DESIGN หัวข้อ 7 ให้ `/assign` = staff เท่านั้น (ดูคำถาม 2.10) |
+| 125 | `test_admin_can_assign_too` | **P** | ตัดสินแล้ว 12.1: admin ⊇ staff ที่ `actorOf()` — แปลแล้ว |
 | 126–127 | `test_only_staff_can_assign` ×2 | P | |
 | 128 | `test_assign_requires_login` | P | |
 | 129 | `test_cannot_assign_to_non_technician` | P | 400 |
@@ -251,7 +251,7 @@
 | 133 | `test_reassign_resets_appointment_and_leaves_trail` | S | ขั้นไม่เปลี่ยน → ลง `ticket_audit_logs` action `reassign` ไม่ใช่ status log |
 | 134 | `test_reassign_takes_ticket_away_from_previous_technician` | P | |
 | 135 | `test_assigning_same_technician_twice_is_409` | P | |
-| 136 | `test_cannot_assign_resolved_ticket` | S | DESIGN เปิด `resolved → assigned` ให้ reopen → ต้องแยกว่า `/assign` ยัง 409 แต่ `/reopen` ได้ |
+| 136 | `test_cannot_assign_resolved_ticket` | S | แปลครึ่ง `/assign` → 409 ด้วย `TRANSITION_ONLY_VIA` แล้ว · ครึ่ง `/reopen` รอสัปดาห์ 5 |
 
 ### schedule (7)
 
@@ -274,8 +274,8 @@
 | 146–147 | `test_status_endpoint_points_to_the_right_one` ×2 (assigned, scheduled) | S | `scheduled` ไม่มีแล้ว → เหลือ assigned / closed / rejected |
 | 148 | `test_cannot_skip_straight_to_resolved` | P | |
 | 149 | `test_pending_parts_requires_note` | P | `NOTE_REQUIRED` |
-| 150 | `test_room_ticket_needs_permission_or_appointment` | **X** | พึ่ง `permission_to_enter` (ดูคำถาม 2.2) |
-| 151 | `test_common_area_needs_no_permission` | **X** | เหมือนข้อ 150 |
+| 150 | `test_room_ticket_needs_permission_or_appointment` | **P** | 12.1 ใส่ `permission_to_enter` กลับ (6.7) → แปลกลับมาแล้ว |
+| 151 | `test_common_area_needs_no_permission` | **P** | เหมือนข้อ 150 |
 | 152 | `test_technician_cannot_touch_unassigned_job` | P | ชั้น 2 ของช่าง |
 | 153 | `test_student_cannot_change_status` | P | |
 | 154 | `test_staff_cannot_do_technician_steps` | P | |
@@ -313,8 +313,8 @@
 | 176 | `test_cannot_confirm_twice` | P | |
 | 177 | `test_closed_ticket_frees_the_asset_for_a_new_report` | P | |
 | 178 | `test_priority_and_status_both_land_in_one_history` | S | แยกสองตารางแล้ว → `GET /history` ต้อง merge สองแหล่ง |
-| 179 | `test_priority_log_row_is_marked_with_priority_to` | S | `priority_to` ไม่มีแล้ว |
-| — | reopen: `resolved → assigned`, คงช่างเดิม, note บังคับ, `reopen_count += 1` | **ใหม่** | DESIGN 3.3 (เฟส B) |
+| 179 | `test_priority_log_row_is_marked_with_priority_to` | S | `priority_to` ไม่มีแล้ว → เทียบ `ticket_audit_logs.detail {from,to}` แทน (แปลแล้ว) |
+| — | reopen: `resolved → assigned`, คงช่างเดิม, note บังคับ, `reopen_count += 1` | **ใหม่** | DESIGN 3.3 — ทำสัปดาห์ 5 |
 
 ---
 
@@ -709,14 +709,31 @@ query param ของ `GET /tickets` ชุดเดียวกับของ�
 
 แปลแล้วสะสม: หมวด 8 (10) + หมวด 1 (33) + หมวด 2 (32) + หมวด 3 (58) = **133 จาก 252**
 
+### สรุปป้ายหลังสัปดาห์ 4
+
+| ป้าย | เคส |
+|---|---|
+| `P` / `P*` | **203** (+1 ข้อ 125 จาก B · +2 ข้อ 150–151 จาก X เพราะ 12.1 ใส่ `permission_to_enter` กลับ) |
+| `S` superseded | **31** |
+| `X` ตกไปถาวร | **17** — 161–163 (ไม่มี `sla_due_at`) อยู่ในนี้ |
+| `B` ยังรอคำตอบ | **1** — ข้อ 19 (ทำเป็น 401 ไว้ก่อน) |
+| รวม | **252** |
+
+แปลแล้วสะสม: หมวด 8 (10) + หมวด 1 (33) + หมวด 2 (32) + หมวด 3 (58) + หมวด 4 (52 จาก 56) = **185 จาก 252**
+
+หมวด 4 ที่ยังไม่ปิด: 161–163 ตกไปถาวร · ครึ่ง `/reopen` ของข้อ 136 และแถว reopen ท้ายหมวด รอสัปดาห์ 5
+
+ไฟล์เทสของหมวด 4: `test/e2e/workflow.e2e-spec.ts` (95) · `test/e2e/workflow-concurrency.e2e-spec.ts` (4) ·
+`test/e2e/ticket-actions.e2e-spec.ts` (17 — contract ของ `actions` ตาม P8 ไม่ใช่เทสเดิม)
+
 ## TODO ที่เลื่อนออกไป (อนุมัติ 6 ต.ค. 2569)
 
 | เรื่อง | ทำเมื่อไหร่ | หมายเหตุ |
 |---|---|---|
 | ~~entity ของ TypeORM~~ | ~~สัปดาห์ 2~~ | **เสร็จแล้ว** — ครบ 11 ตาราง มี contract test เทียบคอลัมน์กับ DB |
 | ~~เคส 59 ครึ่งหลัง~~ | ~~สัปดาห์ 3~~ | **เสร็จแล้ว** |
-| `GET /tickets/:id/history` (รวม status log + audit log) | สัปดาห์ 4 | คู่กับเคส 178–179 — สัปดาห์ 3 ส่ง `status_logs` ใน `GET /tickets/:id` ไปก่อน |
-| admin ทำ `/assign` `/reject` ได้หรือไม่ (เคส 125) | ต้องตอบก่อนสัปดาห์ 4 | ตอนนี้ `TicketPolicy` ให้ staff เท่านั้นตามตาราง 7 |
-| `/assign` ต้อง lock แถว `users` ของช่างก่อนมอบงาน | สัปดาห์ 4 | คู่กับการเช็คใบค้างตอนระงับช่าง (DESIGN 4.4) |
-| seed: audit log ของ assign / priority | สัปดาห์ 4 | ทำพร้อม workflow — ตอนนี้ seed เขียน `ticket_audit_logs` แค่ `same_issue` ของใบ disputed |
-| seed: ใบแบบ batch (หลายใบ `batch_id` เดียวกัน) | สัปดาห์ 4 | ตอนนี้ทุกใบมี `batch_id` ของตัวเอง |
+| ~~`GET /tickets/:id/history`~~ | ~~สัปดาห์ 4~~ | **เสร็จแล้ว** — รวมสองตาราง + `duration_seconds` + ชื่อคนกด · `GET /tickets/:id` เลิกส่ง `status_logs` |
+| ~~admin ทำ `/assign` `/reject` ได้หรือไม่ (เคส 125)~~ | ~~ต้องตอบก่อนสัปดาห์ 4~~ | **เสร็จแล้ว** — admin ⊇ staff ที่ `actorOf()` + `RolesGuard` ที่เดียว |
+| ~~`/assign` ต้อง lock แถว `users` ของช่างก่อนมอบงาน~~ | ~~สัปดาห์ 4~~ | **เสร็จแล้ว** — `FOR SHARE` ชนกับ `FOR UPDATE` ตอนระงับช่าง มีเทส concurrency คุม |
+| ~~seed: audit log ของ assign / priority~~ | ~~สัปดาห์ 4~~ | **เสร็จแล้ว** — assign / priority / schedule พร้อม invariant test |
+| ~~seed: ใบแบบ batch (หลายใบ `batch_id` เดียวกัน)~~ | ~~สัปดาห์ 4~~ | **เสร็จแล้ว** — 2 ใบคนละครุภัณฑ์ ผู้แจ้งคนเดียวกัน |
