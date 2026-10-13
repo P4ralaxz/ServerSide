@@ -8,13 +8,13 @@ import { Asset, Ticket, TicketAuditLog, TicketStatusLog, User } from '../../data
 import { AUTO_URGENT_REPORT_COUNT, OPEN_TICKET_QUOTA } from '../../domain/limits';
 import { isOpenStatus, OPEN_STATUSES } from '../../domain/status-rules';
 import { TicketPolicy } from './ticket-policy.service';
+import { TicketViewService } from './ticket-view.service';
 import {
   CreateTicketItemDto,
   CreateTicketsDto,
   CreateTicketsResponse,
   SkippedItemView,
   TicketView,
-  toTicketView,
 } from './tickets.dto';
 
 // predicate ของ idx_tickets_asset_open — สร้างจาก OPEN_STATUSES เพื่อไม่ให้มีรายการสถานะเขียนซ้ำอีกที่
@@ -27,6 +27,7 @@ export class TicketCreationService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly policy: TicketPolicy,
+    private readonly views: TicketViewService,
   ) {}
 
   async create(user: User, dto: CreateTicketsDto): Promise<CreateTicketsResponse> {
@@ -97,14 +98,13 @@ export class TicketCreationService {
           skipped: skippedList,
         });
       }
-      return {
-        batch_id: batchId,
-        created: dto.items.flatMap((i) => {
-          const t = created.get(i.asset_id);
-          return t ? toTicketView(t, assetById.get(i.asset_id)!.buildingId) : [];
-        }),
-        skipped: skippedList,
-      };
+      // คืนผลตามลำดับที่ผู้ใช้ส่งมา — views.of รักษาลำดับของ array ที่ส่งเข้าไป
+      const createdViews = await this.views.of(
+        user,
+        dto.items.flatMap((i) => created.get(i.asset_id) ?? []),
+        m,
+      );
+      return { batch_id: batchId, created: createdViews, skipped: skippedList };
     });
   }
 
@@ -161,9 +161,7 @@ export class TicketCreationService {
       }
 
       await m.getRepository(Ticket).save(ticket);
-      const saved = await m.getRepository(Ticket).findOneByOrFail({ id: ticket.id });
-      const asset = await m.getRepository(Asset).findOneOrFail({ where: { id: ticket.assetId }, withDeleted: true });
-      return toTicketView(saved, asset.buildingId);
+      return this.views.one(user, ticket.id, m);
     });
   }
 
