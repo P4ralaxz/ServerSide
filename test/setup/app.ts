@@ -22,14 +22,17 @@ export class FakeMailService {
   resolvedOutbox: ResolvedMailRecord[] = [];
   // ตั้งเพื่อจำลอง SMTP ล่ม / ค้าง
   mode: 'ok' | 'fail' | 'hang' = 'ok';
+  // hook ตอนเมลออก — ใช้ตรวจว่าเมลถูกส่ง "หลัง commit" จริง โดยอ่าน DB จาก connection อื่นในจังหวะนั้น
+  onSend?: () => Promise<void> | void;
 
   sendLoginCode(email: string, code: string): Promise<void> {
     this.outbox.push({ email, code });
     return this.result();
   }
 
-  sendTicketResolved(email: string, info: Omit<ResolvedMailRecord, 'email'>): Promise<void> {
+  async sendTicketResolved(email: string, info: Omit<ResolvedMailRecord, 'email'>): Promise<void> {
     this.resolvedOutbox.push({ email, ...info });
+    await this.onSend?.();
     return this.result();
   }
 
@@ -47,6 +50,7 @@ export class FakeMailService {
     this.outbox = [];
     this.resolvedOutbox = [];
     this.mode = 'ok';
+    this.onSend = undefined;
   }
 
   private result(): Promise<void> {

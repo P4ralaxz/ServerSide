@@ -796,6 +796,20 @@ describe('workflow', () => {
       expect(mail.resolvedRecipients()).toEqual(['staff@kmitl.ac.th']);
     });
 
+    // mutation check: ย้ายการส่งเมลเข้าไปในทรานแซกชันแล้วเทสนี้ต้องแดง
+    // connection อื่นมองไม่เห็นข้อมูลที่ยังไม่ commit — ถ้าเมลออกก่อน commit จะยังอ่านได้เป็น in_progress
+    it('เมลออกหลัง commit แล้วเท่านั้น: ตอนเมลถูกส่ง connection อื่นต้องเห็นใบเป็น resolved แล้ว', async () => {
+      const t = await existing(dorm.alice, dorm.lift1, 'in_progress');
+      let seenWhenSending: string | null = null;
+      mail.onSend = async () => {
+        const [r]: { status: string }[] = await ds.query(`SELECT status FROM tickets WHERE id = $1`, [t]);
+        seenWhenSending = r.status;
+      };
+      expect((await setStatus(dorm.tech, t, 'resolved')).status).toBe(200);
+      expect(mail.resolvedOutbox.length).toBeGreaterThan(0);
+      expect(seenWhenSending).toBe('resolved');
+    });
+
     it('ไม่มีเมลออกเมื่อการเปลี่ยนสถานะล้มเหลว (ทรานแซกชัน rollback)', async () => {
       const t = await existing(dorm.alice, dorm.ac1, 'assigned', { permissionToEnter: true });
       expect((await setStatus(dorm.tech, t, 'resolved')).status).toBe(409);
