@@ -1,6 +1,10 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
 import { AUDIT_ACTIONS, AuditAction } from '../../domain/enums';
 
+// รายละเอียดของ audit เป็นค่าพื้นฐานเท่านั้น (from/to/report_count) — ไม่ซ้อน object
+// พิมพ์ให้แคบไว้เพื่อให้ null ใส่ได้จริง (TypeORM ปฏิเสธ null ใน jsonb ที่ประกาศเป็น unknown)
+export type AuditDetail = Record<string, string | number | boolean | null>;
+
 @Entity('ticket_audit_logs')
 export class TicketAuditLog {
   @PrimaryGeneratedColumn({ type: 'bigint' })
@@ -16,7 +20,7 @@ export class TicketAuditLog {
   actorId: string | null;
 
   @Column({ type: 'jsonb', default: {} })
-  detail: Record<string, unknown>;
+  detail: AuditDetail;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

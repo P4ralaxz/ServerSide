@@ -6,6 +6,7 @@ import {
   ArrayUnique,
   IsArray,
   IsBoolean,
+  IsDateString,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -17,8 +18,9 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { Ticket, TicketStatusLog } from '../../database/entities';
 import {
+  AUDIT_ACTIONS,
+  AuditAction,
   CLOSE_REASONS,
   CloseReason,
   TICKET_PRIORITIES,
@@ -29,6 +31,7 @@ import {
   TicketStatus,
 } from '../../domain/enums';
 import { MAX_ITEMS_PER_BATCH, TICKET_LIST_DEFAULT_LIMIT, TICKET_LIST_MAX_LIMIT } from '../../domain/limits';
+import { UiAction } from '../../domain/status-rules';
 
 export class CreateTicketItemDto {
   @ApiProperty({ format: 'uuid', description: 'ครุภัณฑ์ที่มีปัญหา — ห้องและอาคารอ่านจากครุภัณฑ์เอง' })
@@ -73,6 +76,47 @@ export class CreateTicketsDto {
   @ValidateNested({ each: true })
   @Type(() => CreateTicketItemDto)
   items: CreateTicketItemDto[];
+}
+
+export class AssignTicketDto {
+  @ApiProperty({ format: 'uuid', description: 'ช่างที่จะรับงาน — ต้องเป็น technician ที่ยังใช้งานอยู่' })
+  @IsUUID()
+  technician_id: string;
+}
+
+export class ScheduleTicketDto {
+  @ApiProperty({ example: '2569-10-20T07:00:00.000Z', description: 'เวลานัดเข้าซ่อม ต้องเป็นเวลาในอนาคต' })
+  @IsDateString()
+  scheduled_at: string;
+}
+
+export class ChangeStatusDto {
+  // รับทุกค่าใน ENUM โดยเจตนา: ปลายทางที่ /status ไปไม่ได้ต้องตอบ 409 ตามตารางหัวข้อ 7 ไม่ใช่ 400
+  // ถ้า whitelist 4 ปลายทางที่นี่ จะกลายเป็น 400 และเทสเดิมของ status flow จะผิดความหมาย (DESIGN 6.9)
+  @ApiProperty({ enum: TICKET_STATUSES, description: 'ช่างไปได้แค่ in_progress / pending_parts / resolved' })
+  @IsIn(TICKET_STATUSES)
+  to: TicketStatus;
+
+  @ApiPropertyOptional({ description: 'บังคับเมื่อไป pending_parts (อะไหล่ที่รอ)' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  note?: string;
+}
+
+export class SetPriorityDto {
+  @ApiProperty({ enum: TICKET_PRIORITIES })
+  @IsIn(TICKET_PRIORITIES)
+  priority: TicketPriority;
+}
+
+export class RejectTicketDto {
+  @ApiProperty({ description: 'เหตุผลที่ไม่รับเรื่อง — บังคับ' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  note: string;
 }
 
 const toBool = ({ value }: { value: unknown }): unknown =>
@@ -134,6 +178,44 @@ export class ListTicketsQuery {
   @IsInt()
   @Min(0)
   offset?: number;
+}
+
+export class UserRefView {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ type: String, nullable: true, description: 'NULL = ยังไม่กรอกชื่อ' })
+  name: string | null;
+}
+
+export class AssetRefView {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'B412-EL-01' })
+  asset_code: string;
+
+  @ApiProperty({ example: 'หลอดไฟเพดาน' })
+  name: string;
+
+  @ApiProperty({ example: 'electrical' })
+  category: string;
+}
+
+export class RoomRefView {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'B-412' })
+  room_no: string;
+}
+
+export class BuildingRefView {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'อาคาร B' })
+  name: string;
 }
 
 export class TicketView {
@@ -208,63 +290,69 @@ export class TicketView {
 
   @ApiProperty()
   updated_at: Date;
+
+  // --- field ที่หน้าจอต้องใช้ (DESIGN 7.2) — มาจาก join ชุดเดียว ไม่ query ต่อแถว ---
+
+  @ApiProperty({ type: AssetRefView, description: 'ชื่อและรหัสครุภัณฑ์ — title เป็นข้อความที่ผู้แจ้งพิมพ์เอง' })
+  asset: AssetRefView;
+
+  @ApiProperty({ type: RoomRefView, nullable: true, description: 'NULL = ใบส่วนกลาง' })
+  room: RoomRefView | null;
+
+  @ApiProperty({ type: BuildingRefView })
+  building: BuildingRefView;
+
+  @ApiProperty({ type: UserRefView, nullable: true })
+  assignee: UserRefView | null;
+
+  @ApiProperty({ type: String, nullable: true, description: 'เหตุผลที่ผู้พักส่งกลับครั้งล่าสุด' })
+  last_reopen_note: string | null;
+
+  @ApiProperty({
+    type: Date,
+    nullable: true,
+    description: 'resolved และยังไม่มีคนแย้ง = เวลาที่ระบบจะปิดให้ · กรณีอื่น NULL',
+  })
+  auto_close_at: Date | null;
+
+  @ApiProperty({
+    isArray: true,
+    type: String,
+    description: 'ปุ่มที่ผู้ใช้คนนี้กดกับใบนี้ได้ตอนนี้ — หน้าจอแสดงปุ่มจากค่านี้เท่านั้น',
+  })
+  actions: UiAction[];
 }
 
-export const toTicketView = (t: Ticket, buildingId: string): TicketView => ({
-  id: t.id,
-  ticket_no: t.ticketNo,
-  batch_id: t.batchId,
-  asset_id: t.assetId,
-  building_id: buildingId,
-  scope: t.scope,
-  room_id: t.roomId,
-  reporter_id: t.reporterId,
-  assigned_to: t.assignedTo,
-  status: t.status,
-  priority: t.priority,
-  title: t.title,
-  description: t.description,
-  report_count: t.reportCount,
-  reopen_count: t.reopenCount,
-  permission_to_enter: t.permissionToEnter,
-  scheduled_at: t.scheduledAt,
-  resolved_at: t.resolvedAt,
-  closed_at: t.closedAt,
-  confirmed_by: t.confirmedBy,
-  close_reason: t.closeReason,
-  disputed_at: t.disputedAt,
-  created_at: t.createdAt,
-  updated_at: t.updatedAt,
-});
-
-export class StatusLogView {
-  @ApiProperty({ enum: TICKET_STATUSES, nullable: true, description: 'NULL = สร้างใบ' })
-  from_status: TicketStatus | null;
-
-  @ApiProperty({ enum: TICKET_STATUSES })
-  to_status: TicketStatus;
-
-  @ApiProperty({ type: String, format: 'uuid', nullable: true, description: 'NULL = ระบบ' })
-  actor_id: string | null;
-
-  @ApiProperty({ type: String, nullable: true })
-  note: string | null;
+export class HistoryEntryView {
+  @ApiProperty({ enum: ['status', 'audit'], description: 'status = เปลี่ยนขั้นจริง · audit = ไม่เปลี่ยนขั้น' })
+  kind: 'status' | 'audit';
 
   @ApiProperty()
-  created_at: Date;
-}
+  at: Date;
 
-export const toStatusLogView = (l: TicketStatusLog): StatusLogView => ({
-  from_status: l.fromStatus,
-  to_status: l.toStatus,
-  actor_id: l.actorId,
-  note: l.note,
-  created_at: l.createdAt,
-});
+  @ApiProperty({ type: UserRefView, nullable: true, description: 'NULL = ระบบ' })
+  actor: UserRefView | null;
 
-export class TicketDetailView extends TicketView {
-  @ApiProperty({ type: [StatusLogView], description: 'เรียงตามเวลา — เฉพาะการเปลี่ยนขั้นจริง' })
-  status_logs: StatusLogView[];
+  @ApiPropertyOptional({ enum: TICKET_STATUSES, nullable: true, description: 'NULL = สร้างใบ (เฉพาะ kind=status)' })
+  from_status?: TicketStatus | null;
+
+  @ApiPropertyOptional({ enum: TICKET_STATUSES, description: 'เฉพาะ kind=status' })
+  to_status?: TicketStatus;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  note?: string | null;
+
+  @ApiPropertyOptional({
+    type: Number,
+    description: 'เฉพาะ kind=status — เวลาที่ค้างในขั้นนี้จนถึงการเปลี่ยนถัดไป หรือถึงตอนนี้',
+  })
+  duration_seconds?: number;
+
+  @ApiPropertyOptional({ enum: AUDIT_ACTIONS, description: 'เฉพาะ kind=audit' })
+  action?: AuditAction;
+
+  @ApiPropertyOptional({ type: Object, description: 'เฉพาะ kind=audit' })
+  detail?: Record<string, unknown>;
 }
 
 export class SkippedItemView {

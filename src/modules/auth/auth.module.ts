@@ -21,6 +21,8 @@ import { OtpService } from './otp.service';
   ],
   controllers: [AuthController],
   providers: [AuthService, OtpService, MailService],
-  exports: [JwtModule],
+  // MailService ถูก export เพราะ workflow ใช้ส่งเมลแจ้งผลซ่อม (DESIGN 6.10)
+  // โมดูลนี้ @Global อยู่แล้ว การ export จึงพอให้ทั้งแอปใช้ตัวเดียวกัน (e2e override ตัวนี้ตัวเดียว)
+  exports: [JwtModule, MailService],
 })
 export class AuthModule {}

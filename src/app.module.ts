@@ -18,6 +18,8 @@ import { RoomsService } from './modules/rooms/rooms.service';
 import { TicketCreationService } from './modules/tickets/ticket-creation.service';
 import { TicketPolicy } from './modules/tickets/ticket-policy.service';
 import { TicketQueryService } from './modules/tickets/ticket-query.service';
+import { TicketViewService } from './modules/tickets/ticket-view.service';
+import { TicketWorkflowService } from './modules/tickets/ticket-workflow.service';
 import { TicketsController } from './modules/tickets/tickets.controller';
 import { UsersController } from './modules/users/users.controller';
 import { UsersService } from './modules/users/users.service';
@@ -47,8 +49,10 @@ import { UsersService } from './modules/users/users.service';
     RoomsService,
     AssetsService,
     TicketPolicy,
+    TicketViewService,
     TicketCreationService,
     TicketQueryService,
+    TicketWorkflowService,
     // ลำดับสำคัญ: guard รันตามลำดับที่ลงทะเบียน — RolesGuard ต้องมาหลัง JwtAuthGuard เพราะอ่าน user ที่ guard นั้นโหลดไว้
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },

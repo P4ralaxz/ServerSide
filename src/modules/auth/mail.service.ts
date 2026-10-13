@@ -26,4 +26,33 @@ export class MailService {
       text: `รหัสเข้าสู่ระบบของคุณคือ ${code}\nรหัสมีอายุ 10 นาที และใช้ได้ครั้งเดียว\nถ้าคุณไม่ได้ขอรหัสนี้ ไม่ต้องทำอะไร`,
     });
   }
+
+  // ส่งทีละคน ไม่รวมผู้รับในฉบับเดียว — รูมเมทไม่ควรเห็นอีเมลของกันและกัน
+  async sendTicketResolved(email: string, info: ResolvedMailInfo): Promise<void> {
+    const deadline =
+      info.autoCloseAt === null
+        ? 'ใบนี้มีคนแย้งว่ายังไม่หาย เจ้าหน้าที่จะเป็นผู้ตัดสิน'
+        : `ถ้าไม่ยืนยันภายใน ${info.autoCloseAt.toISOString()} ระบบจะปิดใบให้`;
+    await this.transport.sendMail({
+      from: this.from,
+      to: email,
+      subject: `ช่างแจ้งว่าซ่อมเสร็จแล้ว: ${info.ticketNo}`,
+      text: [
+        `ใบแจ้งซ่อม ${info.ticketNo} — ${info.assetName} · ${info.where}`,
+        info.note ? `บันทึกของช่าง: ${info.note}` : 'ช่างไม่ได้ฝากบันทึกไว้',
+        'กรุณาตรวจผลแล้วกดยืนยัน หรือส่งกลับให้ช่างถ้ายังไม่หาย',
+        deadline,
+        info.link,
+      ].join('\n'),
+    });
+  }
+}
+
+export interface ResolvedMailInfo {
+  ticketNo: string;
+  assetName: string;
+  where: string;
+  note: string | null;
+  autoCloseAt: Date | null;
+  link: string;
 }
