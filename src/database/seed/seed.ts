@@ -290,8 +290,12 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
     };
 
     await addUser('demo.admin@kmitl.ac.th', 'ผู้ดูแลระบบ', 'admin');
-    for (let i = 1; i <= 2; i++) await addUser(`demo.staff${i}@kmitl.ac.th`, `เจ้าหน้าที่หอพัก คนที่ ${i}`, 'staff');
-    for (let i = 1; i <= 3; i++) await addUser(`demo.tech${i}@kmitl.ac.th`, `ช่างซ่อมบำรุง คนที่ ${i}`, 'technician');
+    // ชื่อคนจริงแบบเดียวกับต้นแบบหน้าจอ — หน้าจอเขียนประโยคอย่าง "ส่งกลับให้ช่างสมชายแล้ว"
+    // ถ้าชื่อในระบบขึ้นต้นด้วย "ช่าง" เอง ประโยคจะกลายเป็น "ช่างช่าง…"
+    const staffNames = ['วิภา สมบูรณ์', 'ธีรพงษ์ แสงทอง'];
+    const techNames = ['สมชาย ใจดี', 'ประเสริฐ มั่นคง', 'อนุชา ทองดี'];
+    for (let i = 1; i <= 2; i++) await addUser(`demo.staff${i}@kmitl.ac.th`, staffNames[i - 1], 'staff');
+    for (let i = 1; i <= 3; i++) await addUser(`demo.tech${i}@kmitl.ac.th`, techNames[i - 1], 'technician');
     // ห้องละ 2 คน 3 ห้องแรกของแต่ละอาคาร (รูมเมทยืนยันแทนกันได้) + 2 คนที่ยังไม่ถูกผูกห้อง
     const housedRooms = buildingCodes.flatMap((code) => rooms.filter((r) => r.buildingCode === code).slice(0, 3));
     for (let i = 1; i <= 14; i++) {
