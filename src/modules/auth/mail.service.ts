@@ -46,6 +46,21 @@ export class MailService {
       ].join('\n'),
     });
   }
+
+  // ใบกลับไปหาช่างคนเดิมโดยไม่ผ่าน Staff ก่อน (DESIGN 6.10) — เมลนี้คือทางเดียวที่ช่างจะรู้ตัว
+  async sendTicketReopened(email: string, info: ReopenedMailInfo): Promise<void> {
+    await this.transport.sendMail({
+      from: this.from,
+      to: email,
+      subject: `ผู้พักแจ้งว่ายังไม่หาย: ${info.ticketNo} (ครั้งที่ ${info.reopenCount})`,
+      text: [
+        `ใบแจ้งซ่อม ${info.ticketNo} — ${info.assetName} · ${info.where}`,
+        `อาการที่ยังเป็นอยู่: ${info.note}`,
+        `ใบกลับไปที่ขั้นมอบหมายแล้ว ช่างคนเดิมยังเป็นผู้รับงาน (ส่งกลับครั้งที่ ${info.reopenCount})`,
+        info.link,
+      ].join('\n'),
+    });
+  }
 }
 
 export interface ResolvedMailInfo {
@@ -54,5 +69,14 @@ export interface ResolvedMailInfo {
   where: string;
   note: string | null;
   autoCloseAt: Date | null;
+  link: string;
+}
+
+export interface ReopenedMailInfo {
+  ticketNo: string;
+  assetName: string;
+  where: string;
+  note: string;
+  reopenCount: number;
   link: string;
 }

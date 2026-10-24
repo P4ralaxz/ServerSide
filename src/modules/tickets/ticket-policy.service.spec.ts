@@ -193,13 +193,13 @@ describe('TicketPolicy.allowedActions — ปุ่มที่ส่งให�
     ['ช่าง · ใบ pending_parts', tech, at('pending_parts'), ['schedule', 'resume']],
     // กฎข้อ 2: ช่างไม่มีปุ่มปิดใบ และ Staff ไม่มีปุ่มยืนยันใบห้องพัก
     ['ช่าง · ใบ resolved (ปิดเองไม่ได้)', tech, at('resolved'), []],
-    ['ผู้พัก · ใบ resolved', roommate, at('resolved'), ['same_issue', 'confirm']],
+    ['ผู้พัก · ใบ resolved', roommate, at('resolved'), ['same_issue', 'confirm', 'reopen']],
     ['Staff · ใบ resolved ของห้องพัก (ยืนยันแทนไม่ได้)', staff, at('resolved'), ['priority']],
     [
       'Staff · ใบ resolved ส่วนกลาง',
       staff,
       at('resolved', { scope: 'common_area', roomId: null }),
-      ['priority', 'confirm'],
+      ['priority', 'confirm', 'reopen'],
     ],
     ['ผู้พัก · ใบ closed', roommate, at('closed'), []],
     ['Staff · ใบ closed (priority ก็แก้ไม่ได้)', staff, at('closed'), []],
@@ -234,7 +234,7 @@ describe('TicketPolicy.allowedActions — ปุ่มที่ส่งให�
     expect(policy.allowedActions(alice, roomTicket, { alreadyReported: true })).toEqual(['cancel']);
   });
 
-  it('ไม่ส่งปุ่มที่ endpoint ยังไม่เกิด (reopen = สัปดาห์ 5)', () => {
+  it('ไม่ส่งปุ่มที่ endpoint ยังไม่เกิด (ว่างตั้งแต่สัปดาห์ 5 — comment จะเข้ามาสัปดาห์ 6)', () => {
     for (const status of TICKET_STATUSES) {
       for (const u of everyone) {
         for (const a of UI_ACTIONS_NOT_IMPLEMENTED) expect(policy.allowedActions(u, at(status))).not.toContain(a);

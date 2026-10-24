@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import { ThrottlerStorage } from '@nestjs/throttler';
 import { AppModule } from '../../src/app.module';
 import { configureApp } from '../../src/app.setup';
-import { MailService } from '../../src/modules/auth/mail.service';
+import { MailService, ReopenedMailInfo } from '../../src/modules/auth/mail.service';
 
 interface ResolvedMailRecord {
   email: string;
@@ -20,6 +20,8 @@ export class FakeMailService {
   outbox: { email: string; code: string }[] = [];
   // เมลแจ้งผลซ่อม (DESIGN 6.10) — เทสเช็คว่าผู้รับถูกคน และไม่มีเมลออกเมื่อทรานแซกชัน rollback
   resolvedOutbox: ResolvedMailRecord[] = [];
+  // เมลตอนผู้พักส่งใบกลับ (DESIGN 6.10 สัปดาห์ 5) — ผู้รับคือช่างเจ้าของงาน + staff
+  reopenedOutbox: (ReopenedMailInfo & { email: string })[] = [];
   // ตั้งเพื่อจำลอง SMTP ล่ม / ค้าง
   mode: 'ok' | 'fail' | 'hang' = 'ok';
   // hook ตอนเมลออก — ใช้ตรวจว่าเมลถูกส่ง "หลัง commit" จริง โดยอ่าน DB จาก connection อื่นในจังหวะนั้น
@@ -36,6 +38,16 @@ export class FakeMailService {
     return this.result();
   }
 
+  async sendTicketReopened(email: string, info: ReopenedMailInfo): Promise<void> {
+    this.reopenedOutbox.push({ email, ...info });
+    await this.onSend?.();
+    return this.result();
+  }
+
+  reopenedRecipients(): string[] {
+    return this.reopenedOutbox.map((m) => m.email).sort();
+  }
+
   last(): string {
     const entry = this.outbox.at(-1);
     if (!entry) throw new Error('ยังไม่มีเมลถูกส่ง');
@@ -49,6 +61,7 @@ export class FakeMailService {
   reset(): void {
     this.outbox = [];
     this.resolvedOutbox = [];
+    this.reopenedOutbox = [];
     this.mode = 'ok';
     this.onSend = undefined;
   }

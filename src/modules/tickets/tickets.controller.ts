@@ -25,6 +25,7 @@ import {
   HistoryEntryView,
   ListTicketsQuery,
   RejectTicketDto,
+  ReopenTicketDto,
   ScheduleTicketDto,
   SetPriorityDto,
   TicketView,
@@ -32,7 +33,6 @@ import {
 
 // endpoint แยกตามสิทธิ์ — ห้ามรวมเป็น PUT /tickets/:id (กฎใน CLAUDE.md)
 // @Roles() ไม่ต้องเขียน 'admin' ซ้ำ: RolesGuard ยกระดับ admin เป็น staff ที่ actorOf() ที่เดียว (DESIGN 4.2)
-// /reopen มาสัปดาห์ 5
 @ApiTags('tickets')
 @ApiBearerAuth()
 @ApiUnauthorizedResponse({ description: 'ไม่มี token หรือ token ใช้ไม่ได้' })
@@ -206,6 +206,27 @@ export class TicketsController {
   @ApiConflictResponse({ description: 'INVALID_TRANSITION — ใบยังไม่ resolved หรือปิดแล้ว' })
   confirm(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<TicketView> {
     return this.workflow.confirm(user, id);
+  }
+
+  @Post(':id/reopen')
+  @Roles('student', 'staff')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'ยังไม่หาย — ส่งใบกลับไปหาช่างคนเดิม · ใบห้องพัก: ผู้พักห้องนั้น · ใบส่วนกลาง: staff',
+    description:
+      'resolved → assigned · ต้องมี note · reopen_count += 1 · ล้าง resolved_at / disputed_at / confirmed_by · เมลแจ้งช่างและ Staff หลัง commit',
+  })
+  @ApiOkResponse({ type: TicketView })
+  @ApiBadRequestResponse({ description: 'ไม่มี note' })
+  @ApiForbiddenResponse({ description: 'ไม่ใช่ผู้พักห้องนั้น หรือเป็นใบห้องพักที่ Staff ทำแทนไม่ได้' })
+  @ApiNotFoundResponse({ description: 'ไม่พบ หรือมองไม่เห็นใบนี้' })
+  @ApiConflictResponse({ description: 'INVALID_TRANSITION — ใบยังไม่ resolved หรือปิดแล้ว' })
+  reopen(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReopenTicketDto,
+  ): Promise<TicketView> {
+    return this.workflow.reopen(user, id, dto);
   }
 
   @Post(':id/cancel')

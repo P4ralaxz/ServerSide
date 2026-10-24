@@ -24,6 +24,7 @@ import {
   AssignTicketDto,
   ChangeStatusDto,
   RejectTicketDto,
+  ReopenTicketDto,
   ScheduleTicketDto,
   SetPriorityDto,
   TicketView,
@@ -162,6 +163,18 @@ export class TicketWorkflowService {
     });
   }
 
+  // "ยังไม่หาย" — กลับไป assigned โดยคงช่างคนเดิม (DESIGN 3.3) · สิทธิ์ชุดเดียวกับ /confirm (ผูกกับห้อง)
+  async reopen(user: User, ticketId: string, dto: ReopenTicketDto): Promise<TicketView> {
+    const view = await this.dataSource.transaction(async (m) => {
+      const ticket = await this.lockAndAuthorize(m, user, ticketId, '/reopen');
+      await this.transition(m, user, ticket, 'assigned', { via: '/reopen', note: dto.note });
+      return this.views.one(user, ticket.id, m);
+    });
+    // หลัง commit เท่านั้น เหตุผลเดียวกับเมลตอน resolved (DESIGN 6.10)
+    await this.notifyReopened(view, dto.note);
+    return view;
+  }
+
   async cancel(user: User, ticketId: string): Promise<TicketView> {
     return this.dataSource.transaction(async (m) => {
       const ticket = await this.lockAndAuthorize(m, user, ticketId, '/cancel');
@@ -245,9 +258,16 @@ export class TicketWorkflowService {
       }
       // ไม่ล้าง disputed_at โดยเจตนา — รายงานต้องแยกใบที่ Staff ปิดทั้งที่ยังมีคนแย้งได้ (3.6)
     }
+    if (from === 'resolved' && to === 'assigned') {
+      // reopen: assigned_to ไม่แตะ = กลับไปหาช่างคนเดิม · รอบยืนยันเดิมจบแล้ว ค่าของรอบนั้นต้องไม่ค้าง
+      // ถ้า disputed_at ค้าง job จะข้ามใบนี้ตลอดไปแม้ช่างซ่อมรอบใหม่เสร็จแล้ว
+      ticket.reopenCount += 1;
+      ticket.resolvedAt = null;
+      ticket.disputedAt = null;
+      ticket.confirmedBy = null;
+    }
     // cancelled / rejected ไม่ตั้ง closed_at: ck_closed_after_resolved ห้าม closed_at ในใบที่ไม่เคยผ่าน resolved
     // เวลาที่ใบจบอ่านจาก ticket_status_logs แถวสุดท้าย (DESIGN 3.5, 3.6)
-    // resolved → assigned (reopen) ทำสัปดาห์ 5 พร้อม endpoint /reopen
   }
 
   // ห้องพักเป็นพื้นที่ส่วนตัว: เริ่มงานได้เมื่อผู้แจ้งอนุญาตให้เข้าห้อง หรือมีนัดแล้ว (DESIGN 6.7)
@@ -277,21 +297,50 @@ export class TicketWorkflowService {
   private async notifyResolved(view: TicketView, note: string | null): Promise<void> {
     try {
       const recipients = await this.resolvedRecipients(view);
-      const link = `${this.config.get('APP_BASE_URL', { infer: true })}/app/tickets/${view.id}`;
-      const where = view.room === null ? `${view.building.name} ส่วนกลาง` : `ห้อง ${view.room.room_no}`;
       for (const email of recipients) {
         await this.mail.sendTicketResolved(email, {
-          ticketNo: view.ticket_no,
-          assetName: `${view.asset.name} (${view.asset.asset_code})`,
-          where,
+          ...this.mailSubject(view),
           note,
           autoCloseAt: view.auto_close_at,
-          link,
+          link: this.link(`/app/tickets/${view.id}`),
         });
       }
     } catch (error) {
       this.logger.warn(`ส่งอีเมลแจ้งผลซ่อมของ ${view.ticket_no} ไม่สำเร็จ: ${String(error)}`);
     }
+  }
+
+  // ผู้รับ = ช่างเจ้าของงาน + staff ที่ใช้งานอยู่ (DESIGN 6.10) · ลิงก์ของช่างพาไปหน้างานของช่าง
+  private async notifyReopened(view: TicketView, note: string): Promise<void> {
+    try {
+      const rows: { email: string; role: UserRole }[] = await this.dataSource.query(
+        `SELECT email, role FROM users
+          WHERE (id = $1 OR role = 'staff') AND is_active = true AND deleted_at IS NULL`,
+        [view.assigned_to],
+      );
+      for (const r of rows) {
+        await this.mail.sendTicketReopened(r.email, {
+          ...this.mailSubject(view),
+          note,
+          reopenCount: view.reopen_count,
+          link: this.link(r.role === 'technician' ? `/app/jobs/${view.id}` : `/app/tickets/${view.id}`),
+        });
+      }
+    } catch (error) {
+      this.logger.warn(`ส่งอีเมลแจ้งการส่งกลับของ ${view.ticket_no} ไม่สำเร็จ: ${String(error)}`);
+    }
+  }
+
+  private mailSubject(view: TicketView): { ticketNo: string; assetName: string; where: string } {
+    return {
+      ticketNo: view.ticket_no,
+      assetName: `${view.asset.name} (${view.asset.asset_code})`,
+      where: view.room === null ? `${view.building.name} ส่วนกลาง` : `ห้อง ${view.room.room_no}`,
+    };
+  }
+
+  private link(path: string): string {
+    return `${this.config.get('APP_BASE_URL', { infer: true })}${path}`;
   }
 
   // ใบห้องพัก → คนที่พักห้องนั้นตอนนี้ (คนเดียวกับที่มีสิทธิ์กด /confirm) · ส่วนกลาง → staff ที่ใช้งานอยู่

@@ -118,6 +118,8 @@ describe('actions ↔ endpoint', () => {
         return http().patch(url).set(headers).send({ priority: 'high' });
       case 'reject':
         return http().post(url).set(headers).send({ note: 'ไม่อยู่ในความรับผิดชอบ' });
+      case 'reopen':
+        return http().post(url).set(headers).send({ note: 'ยังมีเสียงดังอยู่' });
       case 'start':
       case 'resume':
       case 'pending_parts':

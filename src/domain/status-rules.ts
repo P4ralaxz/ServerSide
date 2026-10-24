@@ -151,8 +151,8 @@ export const UI_ACTION_CALL: Record<
 export const UI_ACTIONS = Object.keys(UI_ACTION_CALL) as UiAction[];
 
 // ปุ่มที่ endpoint ยังไม่เกิด — ห้ามส่งชื่อปุ่มที่หน้าจอกดแล้ว 404 (ตัดชื่อออกเมื่อ endpoint นั้นมีจริง)
-// /reopen ทำสัปดาห์ 5 · 'comment' ยังไม่อยู่ใน UiAction เลยเพราะต้องมี endpoint ก่อน (สัปดาห์ 6)
-export const UI_ACTIONS_NOT_IMPLEMENTED: readonly UiAction[] = ['reopen'];
+// ว่างตั้งแต่ /reopen มาในสัปดาห์ 5 · 'comment' ยังไม่อยู่ใน UiAction เลยเพราะต้องมี endpoint ก่อน (สัปดาห์ 6)
+export const UI_ACTIONS_NOT_IMPLEMENTED: readonly UiAction[] = [];
 
 // สถานะที่ action ซึ่ง "ไม่เปลี่ยนขั้น" ทำได้ — endpoint และ allowedActions อ่านตารางเดียวกันนี้
 // 'assign' อยู่ด้วยเพราะเปลี่ยนตัวช่างตอนใบเป็น assigned แล้วไม่ใช่การเปลี่ยนขั้น (ck_real_transition จะปฏิเสธ)

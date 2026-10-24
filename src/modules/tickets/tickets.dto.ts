@@ -119,6 +119,15 @@ export class RejectTicketDto {
   note: string;
 }
 
+export class ReopenTicketDto {
+  // บังคับที่ DTO ไม่ใช่ที่ NOTE_REQUIRED: ปลายทาง assigned มาได้จาก /assign ด้วย ซึ่งไม่ต้องมี note
+  @ApiProperty({ description: 'อาการที่ยังเป็นอยู่ — บังคับ ช่างจะได้รู้ว่าต้องแก้ตรงไหน' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  note: string;
+}
+
 const toBool = ({ value }: { value: unknown }): unknown =>
   value === 'true' ? true : value === 'false' ? false : value;
 
