@@ -1,0 +1,47 @@
+/* คัดลอกจาก docs/ui/mockup.html ตรงตัว — ห้ามคิดค่าใหม่ (UI-PLAN 3) */
+/* light: ค่าเริ่มต้น · dark: ตามเครื่อง หรือบังคับด้วย data-theme บน <html> */
+:root{
+  --bg:#F2F4F7; --surface:#FFFFFF; --sunk:#F6F7F9; --ink:#18202B; --muted:#5B6575; --faint:#8A93A1; --line:#E2E6EB;
+  --accent:#E35205; --accent-press:#C64604; --accent-ink:#FFFFFF; --accent-soft:#FFF0E8;
+  --st-open:#2563C9; --st-open-bg:#E8F0FD;
+  --st-assigned:#5A4BD1; --st-assigned-bg:#EEECFC;
+  --st-progress:#9A6206; --st-progress-bg:#FCF1DC;
+  --st-parts:#8B3FA8; --st-parts-bg:#F5E9FA;
+  --st-resolved:#0B7F81; --st-resolved-bg:#E0F4F3;
+  --st-closed:#2F7A47; --st-closed-bg:#E5F3E9;
+  --st-muted:#5F6979; --st-muted-bg:#EDEFF2;
+  --danger:#C0352A; --danger-bg:#FCEBE9;
+  --scrim:rgba(16,22,30,.42);
+  --shadow:0 1px 2px rgba(24,32,43,.05),0 10px 30px rgba(24,32,43,.08);
+  --f:"IBM Plex Sans Thai","Noto Sans Thai",system-ui,-apple-system,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1319; --surface:#161D26; --sunk:#1B232E; --ink:#E7ECF2; --muted:#A1ABB9; --faint:#7D8796; --line:#29323F;
+  --accent:#FF7A33; --accent-press:#FF915A; --accent-ink:#1B0D04; --accent-soft:#3A2416;
+  --st-open:#86AEF5; --st-open-bg:#1C2A44;
+  --st-assigned:#ABA1F7; --st-assigned-bg:#25224A;
+  --st-progress:#EDBB66; --st-progress-bg:#3A2D16;
+  --st-parts:#D8A0EE; --st-parts-bg:#35223F;
+  --st-resolved:#66D4D2; --st-resolved-bg:#143534;
+  --st-closed:#8BCD9C; --st-closed-bg:#1A3222;
+  --st-muted:#A7B0BD; --st-muted-bg:#252D38;
+  --danger:#FF8D82; --danger-bg:#3D1C1A;
+  --scrim:rgba(0,0,0,.55);
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0E1319; --surface:#161D26; --sunk:#1B232E; --ink:#E7ECF2; --muted:#A1ABB9; --faint:#7D8796; --line:#29323F;
+  --accent:#FF7A33; --accent-press:#FF915A; --accent-ink:#1B0D04; --accent-soft:#3A2416;
+  --st-open:#86AEF5; --st-open-bg:#1C2A44;
+  --st-assigned:#ABA1F7; --st-assigned-bg:#25224A;
+  --st-progress:#EDBB66; --st-progress-bg:#3A2D16;
+  --st-parts:#D8A0EE; --st-parts-bg:#35223F;
+  --st-resolved:#66D4D2; --st-resolved-bg:#143534;
+  --st-closed:#8BCD9C; --st-closed-bg:#1A3222;
+  --st-muted:#A7B0BD; --st-muted-bg:#252D38;
+  --danger:#FF8D82; --danger-bg:#3D1C1A;
+  --scrim:rgba(0,0,0,.55);
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  color-scheme:dark;
+}
