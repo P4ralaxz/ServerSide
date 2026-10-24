@@ -1,4 +1,20 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Res,
+  StreamableFile,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Response } from 'express';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -9,10 +25,12 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiProduces,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { CurrentUser, Roles } from '../../common/auth/decorators';
+import { Env } from '../../config/env';
 import { User } from '../../database/entities';
 import { TicketPolicy } from '../tickets/ticket-policy.service';
 import { TicketQueryService } from '../tickets/ticket-query.service';
@@ -25,6 +43,7 @@ import {
   toAssetView,
   toOpenTicketRef,
 } from './assets.dto';
+import { qrPng, scanUrl } from './asset-qr';
 import { AssetsService } from './assets.service';
 
 const seesQrToken = (user: User): boolean => user.role === 'staff' || user.role === 'admin';
@@ -38,6 +57,7 @@ export class AssetsController {
     private readonly assets: AssetsService,
     private readonly tickets: TicketQueryService,
     private readonly policy: TicketPolicy,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
   @Get()
@@ -67,6 +87,25 @@ export class AssetsController {
   @ApiNotFoundResponse()
   async get(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<AssetView> {
     return toAssetView(await this.assets.get(id), seesQrToken(user));
+  }
+
+  @Get(':id/qr')
+  @Roles('staff')
+  @ApiOperation({
+    summary: 'รูป QR สำหรับพิมพ์ติดครุภัณฑ์ — ลิงก์ไปหน้าสแกน /app/scan/:qrToken (staff, admin)',
+    description: 'ลิงก์ที่อยู่ใน QR ส่งกลับใน header X-Scan-Url ด้วย',
+  })
+  @ApiProduces('image/png')
+  @ApiOkResponse({ description: 'PNG', schema: { type: 'string', format: 'binary' } })
+  @ApiForbiddenResponse({ description: 'พิมพ์สติกเกอร์เป็นงานของเจ้าหน้าที่' })
+  @ApiNotFoundResponse({
+    description: 'ไม่พบครุภัณฑ์ หรือถูกลบแล้ว — กันพิมพ์สติกเกอร์ที่สแกนแล้วเจอ 404 ไปติดหน้างาน',
+  })
+  async qr(@Param('id', ParseUUIDPipe) id: string, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
+    const asset = await this.assets.get(id);
+    const url = scanUrl(this.config.get('APP_BASE_URL', { infer: true }), asset.qrToken);
+    res.setHeader('X-Scan-Url', url);
+    return new StreamableFile(await qrPng(url), { type: 'image/png' });
   }
 
   @Post()
