@@ -48,7 +48,9 @@ export class AuthController {
   @ApiOperation({ summary: 'ยืนยันรหัส OTP แล้วรับ JWT (อายุ 8 ชม.)' })
   @ApiOkResponse({ type: TokenResponse })
   @ApiBadRequestResponse({ description: 'รูปแบบอีเมลหรือรหัสไม่ถูกต้อง' })
-  @ApiUnauthorizedResponse({ description: 'รหัสผิด หมดอายุ ถูกใช้ไปแล้ว หรือบัญชีถูกระงับ' })
+  @ApiUnauthorizedResponse({
+    description: 'รหัสผิด (details.attempts_left = ลองได้อีกกี่ครั้ง) หมดอายุ ถูกใช้ไปแล้ว หรือบัญชีถูกระงับ',
+  })
   @ApiTooManyRequestsResponse({ description: 'รหัสนี้ลองผิดครบ 5 ครั้งแล้ว หรือ IP นี้ยืนยันเกิน 60 ครั้ง/ชม.' })
   verifyCode(@Body() dto: VerifyCodeDto): Promise<TokenResponse> {
     return this.auth.verifyCode(dto.email, dto.code);

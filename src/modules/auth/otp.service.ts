@@ -18,8 +18,15 @@ const rateLimited = (retryAfter: number): AppException =>
     retry_after: Math.max(1, Math.ceil(retryAfter)),
   });
 
-const invalidCode = (): AppException =>
-  new AppException(HttpStatus.UNAUTHORIZED, 'INVALID_CODE', 'รหัสไม่ถูกต้องหรือหมดอายุแล้ว');
+// attempts_left มีเฉพาะตอนที่รหัสที่ใช้ได้อยู่ถูกนับครั้งไปแล้ว — หน้ากรอกรหัสบอกจำนวนครั้งที่เหลือใต้ช่อง (UI-PLAN 5)
+// ไม่ได้เปิดเผยอะไรใหม่: เพดาน OTP_MAX_ATTEMPTS เป็นค่าสาธารณะ และคนที่เห็นตัวเลขนี้ต้องเป็นคนที่เพิ่งลองรหัสของอีเมลนั้นเอง
+const invalidCode = (attemptsLeft?: number): AppException =>
+  new AppException(
+    HttpStatus.UNAUTHORIZED,
+    'INVALID_CODE',
+    'รหัสไม่ถูกต้องหรือหมดอายุแล้ว',
+    attemptsLeft === undefined ? undefined : { attempts_left: attemptsLeft },
+  );
 
 @Injectable()
 export class OtpService {
@@ -92,13 +99,13 @@ export class OtpService {
     // นับก่อนเทียบ ในคำสั่งเดียว: row lock ของ UPDATE ทำให้ 20 request ที่มาพร้อมกันต้องเข้าคิว
     // และเงื่อนไข attempts < 5 ถูกตรวจซ้ำกับค่าล่าสุดหลังได้ lock
     // ถ้าแยกเป็น SELECT แล้ว UPDATE ทุก request จะอ่าน attempts ค่าเดียวกันและผ่านหมด
-    const counted: [{ id: string; code_hash: string }[], number] = await this.dataSource.query(
+    const counted: [{ id: string; code_hash: string; attempts: number }[], number] = await this.dataSource.query(
       `UPDATE login_codes SET attempts = attempts + 1
        WHERE id = (SELECT id FROM login_codes
                    WHERE email = $1 AND consumed_at IS NULL AND expires_at > now()
                    ORDER BY created_at DESC, id DESC LIMIT 1)
          AND attempts < $2
-       RETURNING id, code_hash`,
+       RETURNING id, code_hash, attempts`,
       [email, OTP_MAX_ATTEMPTS],
     );
     const row = counted[0][0];
@@ -122,7 +129,9 @@ export class OtpService {
 
     const expected = Buffer.from(row.code_hash, 'hex');
     const actual = Buffer.from(this.hash(email, code), 'hex');
-    if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) throw invalidCode();
+    if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+      throw invalidCode(Math.max(0, OTP_MAX_ATTEMPTS - row.attempts));
+    }
 
     // ใช้ได้ครั้งเดียว: verify สอง request พร้อมกันด้วยรหัสเดียวกัน มีแค่ตัวเดียวที่ได้แถวกลับมา
     const consumed: [unknown[], number] = await this.dataSource.query(

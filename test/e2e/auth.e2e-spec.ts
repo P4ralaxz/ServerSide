@@ -283,6 +283,25 @@ describe('auth', () => {
       expect(users).toHaveLength(0);
     });
 
+    // หน้ากรอกรหัสบอกจำนวนครั้งที่เหลือใต้ช่องจากค่านี้ (UI-PLAN 5) — นับจาก attempts ใน DB ไม่ใช่ให้หน้าเว็บนับเอง
+    it('รหัสผิดบอก attempts_left ที่ลดลงทีละ 1 จนเหลือ 0', async () => {
+      await requestCode().expect(202);
+      const code = mail.last();
+      const left: unknown[] = [];
+      for (let i = 0; i < 5; i++) left.push((await verify(wrong(code)).expect(401)).body.details?.attempts_left);
+      expect(left).toEqual([4, 3, 2, 1, 0]);
+    });
+
+    it('ไม่มีรหัสที่ใช้ได้ (ไม่เคยขอ / หมดอายุ) → INVALID_CODE ที่ไม่มี attempts_left', async () => {
+      const never = await verify('123456').expect(401);
+      expect(never.body).toMatchObject({ code: 'INVALID_CODE' });
+      expect(never.body.details).toBeUndefined();
+      await requestCode().expect(202);
+      await ds.query(`UPDATE login_codes SET expires_at = now() - interval '1 second'`);
+      const expired = await verify(mail.last()).expect(401);
+      expect(expired.body.details).toBeUndefined();
+    });
+
     it('ผิด 4 ครั้งแล้วถูกครั้งที่ 5 ยังเข้าได้', async () => {
       await requestCode().expect(202);
       const code = mail.last();
