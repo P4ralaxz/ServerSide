@@ -91,6 +91,14 @@ export const TRANSITION_ONLY_VIA: Partial<Record<TransitionKey, readonly Endpoin
   'assigned->rejected': ['/reject'],
 };
 
+// ทิศกลับของ TRANSITION_ONLY_VIA: endpoint ที่เดินได้เฉพาะบางคู่
+// TRANSITION_ONLY_VIA บอกว่า "คู่นี้ต้องมาจาก endpoint ไหน" แต่ไม่ได้บอกว่า "endpoint นี้เดินคู่ไหนได้บ้าง"
+// /reopen มีปลายทาง assigned เหมือน /assign และ staff อยู่ในแถว open/in_progress/pending_parts → assigned
+// ถ้าไม่ผูกคู่ไว้ Staff ยิง /reopen กับใบ open ได้ใบ assigned ที่ไม่มีช่าง โดยไม่ผ่านการตรวจตัวช่างของ /assign
+export const ENDPOINT_ONLY_PAIRS: Partial<Record<Endpoint, readonly TransitionKey[]>> = {
+  '/reopen': ['resolved->assigned'],
+};
+
 // admin ได้ทุกสิทธิ์ของ staff — ยกระดับ role ที่ฟังก์ชันนี้ที่เดียว (DESIGN 4.2)
 // ถ้าใส่ 'admin' ทีละแถวใน TRANSITIONS หรือทีละ endpoint วันหนึ่งจะมีแถวที่ลืมใส่
 // แล้วกลายเป็นข้อยกเว้นที่ไม่มีใครตั้งใจ
@@ -102,10 +110,13 @@ export const isOpenStatus = (s: TicketStatus): boolean => (OPEN_STATUSES as read
 export const canTransition = (from: TicketStatus, to: TicketStatus, actor: Actor): boolean =>
   TRANSITIONS[from][to]?.includes(actor) ?? false;
 
-// ชั้น 3 ทั้งก้อน: ตารางกฎ + เส้นทางที่ผูกกับ endpoint เดียว
+// ชั้น 3 ทั้งก้อน: ตารางกฎ + เส้นทางที่ผูกกับ endpoint เดียว (ทั้งสองทิศ)
 export const canGoVia = (from: TicketStatus, to: TicketStatus, via: Endpoint, actor: Actor): boolean => {
   if (!canTransition(from, to, actor)) return false;
-  const only = TRANSITION_ONLY_VIA[transitionKey(from, to)];
+  const key = transitionKey(from, to);
+  const pairs = ENDPOINT_ONLY_PAIRS[via];
+  if (pairs !== undefined && !pairs.includes(key)) return false;
+  const only = TRANSITION_ONLY_VIA[key];
   return only === undefined || only.includes(via);
 };
 

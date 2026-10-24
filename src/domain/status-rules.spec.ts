@@ -84,6 +84,19 @@ describe('TRANSITION_ONLY_VIA', () => {
     expect(canGoVia('resolved', 'assigned', '/status', 'staff')).toBe(false);
   });
 
+  // mutation check: ลบ ENDPOINT_ONLY_PAIRS['/reopen'] แล้วเทสนี้ต้องแดง — Staff จะใช้ /reopen แทน /assign ได้
+  it('/reopen เดินได้คู่เดียวคือ resolved → assigned (ทิศกลับของ TRANSITION_ONLY_VIA)', () => {
+    for (const from of TICKET_STATUSES) {
+      for (const actor of ['student', 'staff'] as const) {
+        expect({ from, actor, ok: canGoVia(from, 'assigned', '/reopen', actor) }).toEqual({
+          from,
+          actor,
+          ok: from === 'resolved',
+        });
+      }
+    }
+  });
+
   it('resolved → closed ไปได้ทาง /confirm และ job ปิดอัตโนมัติ แต่ไม่ใช่ /status', () => {
     expect(canGoVia('resolved', 'closed', '/confirm', 'staff')).toBe(true);
     expect(canGoVia('resolved', 'closed', 'system:auto-close', 'system')).toBe(true);

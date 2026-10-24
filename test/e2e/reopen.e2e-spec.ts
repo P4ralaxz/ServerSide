@@ -183,6 +183,18 @@ describe('reopen', () => {
       },
     );
 
+    // Staff อยู่ในแถว open/in_progress/pending_parts → assigned ของตารางกฎ (มอบหมาย / เปลี่ยนตัวช่าง)
+    // /reopen ต้องไม่กลายเป็นทางลัดของ /assign ที่ได้ใบ assigned โดยไม่ผ่านการตรวจตัวช่าง
+    it.each<TicketStatus>(['open', 'in_progress', 'pending_parts'])(
+      'Staff ยิง /reopen กับใบส่วนกลางที่ %s → 409 และใบไม่ขยับ',
+      async (status) => {
+        const t = await existing(dorm.lift1, status);
+        const res = await reopen(dorm.staff, t, 'ทดสอบ');
+        expect(res.status).toBe(409);
+        expect(await row(t)).toMatchObject({ status, reopen_count: 0 });
+      },
+    );
+
     it('ใบที่ถูกลบแบบ soft → 404', async () => {
       const t = await existing(dorm.ac1, 'resolved', { deletedAt: new Date() });
       expect((await reopen(dorm.alice, t, 'ยังไม่หาย')).status).toBe(404);
