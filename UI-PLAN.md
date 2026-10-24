@@ -127,18 +127,23 @@ KPI 4 ตัว (เวลาซ่อมมัธยฐานไม่นับ
 
 ## 6. error code → สิ่งที่หน้าจอทำ
 
-| code | ที่เกิด | หน้าจอทำอะไร |
-|---|---|---|
-| `VALIDATION_FAILED` | ทุกฟอร์ม | แสดงใต้ช่องตาม `details[].field` |
-| `DUPLICATE_OPEN_TICKET` | แจ้งซ่อม | ไม่ใช่ error ทั้งหน้า แสดงในกลุ่ม "ข้าม" พร้อมปุ่มเจอปัญหาเดียวกัน |
-| `ALREADY_REPORTED` | same-issue | "คุณกดว่าเจอปัญหาเดียวกันแล้ว" |
-| `QUOTA_EXCEEDED` (429) | แจ้งซ่อม | "คุณมีใบที่ยังเปิดอยู่ครบ 10 ใบแล้ว รอให้ปิดก่อนหรือติดต่อ Staff" |
-| `INVALID_TRANSITION` (409) | ทุกปุ่มสถานะ | toast "ใบนี้เปลี่ยนสถานะไปแล้ว" แล้วโหลดใบใหม่ |
-| 401 | ทุกหน้า | ล้าง token → หน้า login พร้อม `next` |
-| 404 | รายละเอียดใบ | "ไม่พบใบนี้ หรือคุณไม่มีสิทธิ์ดู" (ห้ามแยกสองกรณี) |
-| 429 (throttle) | login | "ขอรหัสถี่เกินไป ลองใหม่ใน N วินาที" |
+ชื่อ `code` ตรงกับโค้ดจริงแล้ว (ตรวจตอน UI-1) · ข้อความอยู่ที่ `web/src/api/errors.ts` ที่เดียว
 
-ชื่อ `code` เป็นชื่อที่คาดไว้ ให้ใช้ชื่อจริงจากโค้ด ถ้าไม่ตรงให้แก้ตารางนี้ ไม่ต้องแก้ backend
+| code (HTTP) | ที่เกิด | หน้าจอทำอะไร |
+|---|---|---|
+| `VALIDATION_FAILED` (400) | ทุกฟอร์ม | แสดงใต้ช่องตาม `details[].field` (เช่น `items.0.description`, `note`) |
+| `DUPLICATE_OPEN_TICKET` (409) | แจ้งซ่อม — ซ้ำทุกรายการ | ไม่ใช่ error ทั้งหน้า แสดงกลุ่ม "มีคนแจ้งไว้ก่อนแล้ว" จาก `details.skipped[]` พร้อมปุ่มเจอปัญหาเดียวกัน (ซ้ำบางรายการ = 201 + `skipped[]` แสดงแบบเดียวกัน) |
+| `ALREADY_REPORTED` (409) | same-issue | "คุณกดว่าเจอปัญหาเดียวกันแล้ว" |
+| `TICKET_NOT_OPEN` (409) | same-issue | "ใบนี้ปิดไปแล้ว" |
+| `QUOTA_EXCEEDED` (429) | แจ้งซ่อม | "คุณมีใบที่ยังเปิดอยู่ครบ N ใบแล้ว รอให้ปิดก่อนหรือติดต่อ Staff" (N จาก `details.limit`) |
+| `INVALID_TRANSITION` (409) | ทุกปุ่มสถานะ | toast "ใบนี้เปลี่ยนสถานะไปแล้ว" แล้วโหลดใบใหม่ |
+| `UNAUTHORIZED` (401) | ทุกหน้า (คำขอที่มี token) | ล้าง session → หน้า login พร้อม `next` |
+| `INVALID_CODE` (401) | กรอกรหัส | ใต้ช่อง "รหัสไม่ถูกต้อง ลองได้อีก N ครั้ง" จาก `details.attempts_left` · ไม่มีค่านี้ = ไม่มีรหัสที่ใช้ได้ → "ขอรหัสใหม่" · ไม่พาไปหน้า login เพราะคำขอนี้ไม่มี token |
+| `CODE_LOCKED` (429) | กรอกรหัส | "ลองรหัสผิดครบ 5 ครั้งแล้ว กรุณาขอรหัสใหม่" |
+| `ACCOUNT_DISABLED` (401) | กรอกรหัส | "บัญชีนี้ถูกระงับการใช้งาน ติดต่อ Staff ของหอพัก" |
+| `RATE_LIMITED` (429) | ขอรหัส | "ขอรหัสถี่เกินไป ลองใหม่ใน N วินาที" (N จาก `details.retry_after`) |
+| `NOT_FOUND` (404) | รายละเอียดใบ / สแกน | ใบ: "ไม่พบใบนี้ หรือคุณไม่มีสิทธิ์ดู" (ห้ามแยกสองกรณี — มี Playwright เทียบทุกตัวอักษร) · สแกน: "ไม่พบครุภัณฑ์จาก QR นี้" |
+| `FORBIDDEN` (403) | แจ้งซ่อมห้องอื่น | "แจ้งซ่อมได้เฉพาะของในห้องที่คุณพัก และของส่วนกลาง" |
 
 ---
 
@@ -159,7 +164,9 @@ web/
 
 - Nest: `ServeStaticModule` เสิร์ฟ `web/dist` ที่ `/app` และส่ง `index.html` สำหรับ `/app/*`
 - type ของ response ให้ตรงกับ DTO ฝั่ง backend มีเทสเทียบกับ Swagger JSON
-- **dependency ที่อนุญาต**: `react`, `react-dom`, `react-router-dom`, `@tanstack/react-query`, `vite`, `@vitejs/plugin-react`, `@playwright/test` ตัวอื่นต้องถามก่อน (ห้ามใช้ UI kit, CSS framework, library ไอคอน, library กราฟ)
+- **dependency ที่อนุญาต**: `react`, `react-dom`, `react-router-dom`, `@tanstack/react-query`, `vite`, `@vitejs/plugin-react`, `@playwright/test` + ตกลงเพิ่มตอน UI-1: `@types/react`, `@types/react-dom`, `@nestjs/serve-static` (DESIGN 12.1.3) ตัวอื่นต้องถามก่อน (ห้ามใช้ UI kit, CSS framework, library ไอคอน, library กราฟ)
+- eslint / typescript / `@typescript-eslint` ใช้ของ root ไม่ลงซ้ำใน `web/`
+- type ของ response: `web/src/api/schema.gen.ts` สร้างจาก Swagger ด้วย `npm run web:types` · `test/contract/web-types.spec.ts` เทียบทุกครั้งที่รัน `test:e2e`
 - **npm scripts**: `web:dev`, `web:build`, `web:lint`, `web:typecheck`, `web:e2e`
 
 ---
@@ -184,6 +191,7 @@ web/
 
 - `npm run lint && npm run web:lint && npm run web:typecheck && npm run web:build && npm run test:e2e && npm run web:e2e`
 - Playwright รันกับ backend จริงที่ seed แล้ว (ไม่ mock API) ตามเส้นทางเดียวกับที่กดในต้นแบบ
+  - backend = `test/ui-server.ts` (AppModule ตัวจริง + MailService ปลอมเขียนรหัสลงไฟล์) ที่ :3199 · seed DB ของ dev ใหม่ทุกรอบ · browser = Chrome ในเครื่อง
   - **UI-1**: login → หน้าสแกนของชิ้นที่มีใบรอยืนยัน → ดูและยืนยันผลซ่อม → ยังไม่หาย (ส่งโดยไม่กรอกต้องโดนบล็อก แล้วกรอกส่ง) · แจ้งซ่อมชิ้นใหม่ (ชิ้นที่มีใบเปิดเลือกไม่ได้, ไม่กรอกอาการต้องโดนบล็อก) → หน้าสำเร็จ → ส่งซ่อมแล้ว · สแกน asset ห้องอื่น → ไม่เห็นใบของห้องนั้น ไม่มีปุ่มแจ้ง
   - **UI-2**: ใบที่ถูกส่งกลับขึ้นกลุ่ม "ถูกส่งกลับ" ของช่างคนเดิมพร้อมเหตุผล · รออะไหล่โดยไม่กรอกต้องโดนบล็อก · ช่างซ่อมเสร็จ → ใบย้ายไป "รอผู้พักยืนยัน" และนักศึกษาเห็นใน "รอคุณยืนยัน" · Staff มอบหมายใบจากตัวกรองรอมอบหมาย → ตัวเลขลดลง → ช่างเห็นงาน · Staff เปิดใบห้องพักที่รอยืนยัน → ไม่มีปุ่มยืนยัน
 - mutation check (เทสต้องแดง)
