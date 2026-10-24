@@ -214,6 +214,33 @@ describe('seed', () => {
     expect(bad).toHaveLength(0);
   });
 
+  // สัปดาห์ 5: เดโมต้องมีใบที่ Staff ปิดทั้งที่มีคนแย้ง และใบที่ถูกส่งกลับแล้วยังรอช่างอยู่
+  it('มีใบที่ Staff ปิดทั้งที่มีคนแย้ง — คนแย้งก่อนใบถูกปิด', async () => {
+    const rows: { disputed_at: Date; resolved_at: Date; closed_at: Date }[] = await ds.query(
+      `SELECT disputed_at, resolved_at, closed_at FROM tickets
+        WHERE status = 'closed' AND close_reason = 'staff_confirmed' AND disputed_at IS NOT NULL`,
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      expect(r.disputed_at.getTime()).toBeGreaterThan(r.resolved_at.getTime());
+      expect(r.disputed_at.getTime()).toBeLessThan(r.closed_at.getTime());
+    }
+  });
+
+  it('มีใบที่ถูกส่งกลับแล้วยังเปิดอยู่ และค่าของรอบยืนยันก่อนถูกล้างตาม DESIGN 3.6', async () => {
+    const rows: { status: string; resolved_at: Date | null; disputed_at: Date | null; note: string | null }[] =
+      await ds.query(
+        `SELECT t.status, t.resolved_at, t.disputed_at,
+                (SELECT l.note FROM ticket_status_logs l
+                  WHERE l.ticket_id = t.id AND l.from_status = 'resolved' AND l.to_status = 'assigned'
+                  ORDER BY l.created_at DESC LIMIT 1) AS note
+           FROM tickets t
+          WHERE t.reopen_count > 0 AND t.status = 'assigned'`,
+      );
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect(r).toMatchObject({ resolved_at: null, disputed_at: null, note: expect.any(String) });
+  });
+
   // ค้างจากสัปดาห์ 1: ตอนนั้นทุกใบมี batch_id ของตัวเอง
   it('มีใบที่แจ้งพร้อมกันในคำขอเดียว (batch_id เดียว หลายใบ คนละครุภัณฑ์)', async () => {
     const [row]: { batch_id: string; n: string; assets: string; reporters: string }[] = await ds.query(

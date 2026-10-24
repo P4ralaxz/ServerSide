@@ -93,6 +93,11 @@ const SCENARIOS: Scenario[] = [
   { scope: 'common_area', count: 1, steps: [assign, start, resolve], tail: [80, 120] },
   // มีคนกด same-issue หลัง resolved → job ต้องข้ามใบนี้
   { scope: 'common_area', count: 1, steps: [assign, start, resolve], tail: [80, 100], disputed: true },
+  // Staff ปิดทั้งที่ยังมีคนแย้ง — รายงานต้องแยกกรณีนี้ออกมาได้ (disputed_at ไม่ถูกล้างตอน confirm)
+  { scope: 'common_area', count: 1, steps: [assign, start, resolve, confirm('common_area')], disputed: true },
+  // ถูกส่งกลับแล้วยังรอช่างอยู่ — กลุ่ม "ถูกส่งกลับ" ของช่างและตัวกรอง reopened=true ของ Staff ต้องมีของ
+  { scope: 'room', count: 1, steps: [assign, start, resolve, reopen('room')], tail: [1, 20] },
+  { scope: 'common_area', count: 1, steps: [assign, start, resolve, reopen('common_area')], tail: [1, 20] },
 ];
 
 interface Asset {
@@ -374,9 +379,12 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
         });
 
         if (sc.disputed && t.resolvedAt) {
-          t.disputedAt = new Date(t.resolvedAt.getTime() + 5 * HOUR);
+          // คนแย้งต้องกดก่อน Staff ปิดใบ — ใบที่ปิดแล้วจึงวางเวลาแย้งไว้กลางช่วงรอยืนยัน
+          t.disputedAt = t.closedAt
+            ? new Date((t.resolvedAt.getTime() + t.closedAt.getTime()) / 2)
+            : new Date(t.resolvedAt.getTime() + 5 * HOUR);
           t.secondReporter = students.find((s) => s.id !== t.reporter.id) ?? null;
-          t.updatedAt = t.disputedAt;
+          if (!t.closedAt) t.updatedAt = t.disputedAt;
         }
         planned.push(t);
       }
