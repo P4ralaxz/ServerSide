@@ -329,6 +329,9 @@ export class TicketWorkflowService {
       ticket.resolvedAt = null;
       ticket.disputedAt = null;
       ticket.confirmedBy = null;
+      // นัดรอบก่อนผ่านไปแล้ว ถ้าค้างไว้ canEnterRoom จะนับเป็น "มีนัด" แล้วช่างเข้าห้องพักได้
+      // ทั้งที่ผู้พักไม่ได้อนุญาตและยังไม่ได้นัดรอบใหม่ (DESIGN 12.3 ข้อ 10)
+      ticket.scheduledAt = null;
     }
     // cancelled / rejected ไม่ตั้ง closed_at: ck_closed_after_resolved ห้าม closed_at ในใบที่ไม่เคยผ่าน resolved
     // เวลาที่ใบจบอ่านจาก ticket_status_logs แถวสุดท้าย (DESIGN 3.5, 3.6)

@@ -229,6 +229,25 @@ describe('reopen', () => {
       expect((await setStatus(dorm.tech, t, 'in_progress')).status).toBe(200);
     });
 
+    // DESIGN 12.3 ข้อ 10: นัดรอบก่อนผ่านไปแล้ว ถ้าค้างไว้ canEnterRoom จะนับว่ามีนัด
+    // แล้วช่างเข้าห้องพักที่ผู้พักไม่ได้อนุญาตได้โดยไม่ต้องนัดใหม่
+    it('ใบห้องพักที่ไม่อนุญาตให้เข้าห้อง: reopen ล้างนัดเก่า ช่างต้องนัดใหม่ก่อนเริ่มงาน', async () => {
+      const t = await existing(dorm.ac1, 'resolved', {
+        permissionToEnter: false,
+        scheduledAt: new Date(Date.now() - 2 * HOUR),
+      });
+      expect((await reopen(dorm.alice, t, 'ยังไม่หาย')).status).toBe(200);
+      expect(await row(t)).toMatchObject({ scheduled_at: null });
+      const detail = await http()
+        .get(`/tickets/${t}`)
+        .set(await as(dorm.tech));
+      expect(detail.body.actions).not.toContain('start');
+      expect(detail.body.actions).toContain('schedule');
+      const start = await setStatus(dorm.tech, t, 'in_progress');
+      expect(start.status).toBe(409);
+      expect(start.body.code).toBe('APPOINTMENT_REQUIRED');
+    });
+
     it('ปุ่ม reopen อยู่ใน actions ของผู้พักเมื่อใบ resolved (เดิมถูกกรองไว้จนกว่า endpoint จะมี)', async () => {
       const t = await existing(dorm.ac1);
       const detail = await http()
