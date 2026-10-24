@@ -286,8 +286,15 @@ describe('assets', () => {
     expect(await ids({ common_area: true })).toEqual([liftD1, liftD2]);
     expect(await ids({ common_area: false })).toEqual([inRoom]);
     expect(await ids({ building_id: d2 })).toEqual([liftD2]);
-    expect(await ids({ room_id: room })).toEqual([inRoom]);
     expect(await ids({ category: 'elevator', building_id: d1 })).toEqual([liftD1]);
+    // DESIGN 7.5 (สัปดาห์ 5): นักศึกษาขอรายการของห้องที่ตัวเองไม่ได้พัก → 403 · staff กรองห้องไหนก็ได้
+    await http().get('/assets').set(h).query({ room_id: room }).expect(403);
+    const staffView = await http()
+      .get('/assets')
+      .set(await as(people.staff))
+      .query({ room_id: room })
+      .expect(200);
+    expect((staffView.body as { id: string }[]).map((a) => a.id)).toEqual([inRoom]);
     await http().get('/assets').set(h).query({ common_area: 'maybe' }).expect(400);
     await http().get(`/assets/${liftD2}`).set(h).expect(200);
   });

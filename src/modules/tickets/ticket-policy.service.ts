@@ -144,4 +144,12 @@ export class TicketPolicy {
   assertCanReport(user: PolicyUser, asset: Pick<Asset, 'roomId'>): void {
     if (!this.canReport(user, asset)) throw forbidden('แจ้งซ่อมได้เฉพาะครุภัณฑ์ในห้องของตัวเองหรือส่วนกลาง');
   }
+
+  // GET /assets?room_id= (DESIGN 7.5): นักศึกษาเปิดรายการของในห้องคนอื่นไม่ได้ — หน้าแจ้งซ่อมใช้แค่ห้องตัวเอง
+  // ใบเปิดของห้องอื่นถูกกรองด้วย canSee อยู่แล้ว ชั้นนี้กันไม่ให้ใช้หน้าแจ้งซ่อมไล่ดูห้องคนอื่น
+  assertCanBrowseRoom(user: PolicyUser, roomId: string): void {
+    if (actorOf(user) === 'student' && user.roomId !== roomId) {
+      throw forbidden('ดูรายการครุภัณฑ์ได้เฉพาะห้องของตัวเองหรือส่วนกลาง');
+    }
+  }
 }

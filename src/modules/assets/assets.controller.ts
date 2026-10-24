@@ -14,7 +14,17 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser, Roles } from '../../common/auth/decorators';
 import { User } from '../../database/entities';
-import { AssetDto, AssetView, ListAssetsQuery, PatchAssetDto, toAssetView } from './assets.dto';
+import { TicketPolicy } from '../tickets/ticket-policy.service';
+import { TicketQueryService } from '../tickets/ticket-query.service';
+import {
+  AssetDto,
+  AssetListItemView,
+  AssetView,
+  ListAssetsQuery,
+  PatchAssetDto,
+  toAssetView,
+  toOpenTicketRef,
+} from './assets.dto';
 import { AssetsService } from './assets.service';
 
 const seesQrToken = (user: User): boolean => user.role === 'staff' || user.role === 'admin';
@@ -24,13 +34,31 @@ const seesQrToken = (user: User): boolean => user.role === 'staff' || user.role 
 @ApiUnauthorizedResponse({ description: 'ไม่มี token หรือ token ใช้ไม่ได้' })
 @Controller('assets')
 export class AssetsController {
-  constructor(private readonly assets: AssetsService) {}
+  constructor(
+    private readonly assets: AssetsService,
+    private readonly tickets: TicketQueryService,
+    private readonly policy: TicketPolicy,
+  ) {}
 
   @Get()
-  @ApiOperation({ summary: 'รายการครุภัณฑ์ (ทุก role)' })
-  @ApiOkResponse({ type: [AssetView] })
-  async list(@CurrentUser() user: User, @Query() q: ListAssetsQuery): Promise<AssetView[]> {
-    return (await this.assets.list(q)).map((a) => toAssetView(a, seesQrToken(user)));
+  @ApiOperation({
+    summary: 'รายการครุภัณฑ์ พร้อมใบที่ยังเปิดอยู่ของแต่ละชิ้น (ทุก role)',
+    description: 'open_ticket ส่งเฉพาะใบที่ผู้ขอมองเห็นได้ · นักศึกษาขอ room_id ของห้องอื่น → 403',
+  })
+  @ApiOkResponse({ type: [AssetListItemView] })
+  @ApiForbiddenResponse({ description: 'นักศึกษาขอรายการของห้องอื่น' })
+  async list(@CurrentUser() user: User, @Query() q: ListAssetsQuery): Promise<AssetListItemView[]> {
+    if (q.room_id) this.policy.assertCanBrowseRoom(user, q.room_id);
+    const assets = await this.assets.list(q);
+    // ใบเปิดของทุกชิ้นในคำสั่งเดียว — ไม่ถามทีละชิ้น (DESIGN 7.5)
+    const { visible } = await this.tickets.openTicketsOf(
+      user,
+      assets.map((a) => a.id),
+    );
+    return assets.map((a) => ({
+      ...toAssetView(a, seesQrToken(user)),
+      open_ticket: toOpenTicketRef(visible.get(a.id)),
+    }));
   }
 
   @Get(':id')

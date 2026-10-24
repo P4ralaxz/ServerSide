@@ -2,7 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { IfPresent, Nullable } from '../../common/validation/is-defined-if-present';
-import { Asset } from '../../database/entities';
+import { Asset, Ticket } from '../../database/entities';
+import { TICKET_STATUSES, TicketStatus } from '../../domain/enums';
 
 // ใช้ทั้ง POST และ PUT
 export class AssetDto {
@@ -155,3 +156,27 @@ export const toAssetView = (a: Asset, withQrToken: boolean): AssetView => ({
   is_common_area: a.roomId === null,
   ...(withQrToken ? { qr_token: a.qrToken } : {}),
 });
+
+// ใบที่ยังเปิดอยู่ของครุภัณฑ์ชิ้นนั้น — ส่งเฉพาะใบที่ผู้ขอมองเห็นได้ (canSee) ไม่งั้นเป็น null
+export class AssetOpenTicketView {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'TK-2569-000123' })
+  ticket_no: string;
+
+  @ApiProperty({ enum: TICKET_STATUSES })
+  status: TicketStatus;
+}
+
+export class AssetListItemView extends AssetView {
+  @ApiProperty({
+    type: AssetOpenTicketView,
+    nullable: true,
+    description: 'หน้าแจ้งซ่อมแสดงชิ้นนี้เป็น "แจ้งไว้แล้ว" แทนช่องให้เลือก (DESIGN 7.5)',
+  })
+  open_ticket: AssetOpenTicketView | null;
+}
+
+export const toOpenTicketRef = (t: Ticket | undefined): AssetOpenTicketView | null =>
+  t ? { id: t.id, ticket_no: t.ticketNo, status: t.status } : null;

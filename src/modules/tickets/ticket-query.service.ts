@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, In } from 'typeorm';
 import { notFound } from '../../common/errors/errors';
 import { Ticket, TicketAuditLog, TicketStatusLog, User } from '../../database/entities';
 import { TICKET_LIST_DEFAULT_LIMIT } from '../../domain/limits';
+import { OPEN_STATUSES } from '../../domain/status-rules';
 import { QUEUE_COUNTERS, QueueCounter, ticketFilters } from './ticket-filters';
 import { TicketPolicy } from './ticket-policy.service';
 import { TicketViewService } from './ticket-view.service';
@@ -43,6 +44,22 @@ export class TicketQueryService {
     }
     const counts = await qb.getRawOne<Record<QueueCounter, number>>();
     return counts!;
+  }
+
+  // ใบที่ยังเปิดอยู่ของครุภัณฑ์ชุดหนึ่งในคำสั่งเดียว (DESIGN 7.4, 7.5) — ห้ามถามทีละชิ้น
+  //   visible = เฉพาะใบที่ผู้ใช้คนนี้มองเห็น: canSee ตัวเดียวกับ GET /tickets/:id
+  //             สแกน QR ของห้องอื่นต้องไม่รู้ว่าห้องนั้นแจ้งอะไรไว้ (กติกาเดียวกับ ownership ก่อน duplicate ใน 4.1)
+  //   busy    = มีใบเปิดอยู่ ไม่ว่าผู้ใช้คนนี้จะเห็นหรือไม่ — ใช้ตัดสินว่าแจ้งใหม่ได้ไหมเท่านั้น ห้ามส่งออกไปเป็นข้อมูลใบ
+  async openTicketsOf(user: User, assetIds: string[]): Promise<{ visible: Map<string, Ticket>; busy: Set<string> }> {
+    if (assetIds.length === 0) return { visible: new Map(), busy: new Set() };
+    // find ของ repository กรอง deleted_at ให้เองผ่าน @DeleteDateColumn (ต่างจาก manager.query)
+    const open = await this.dataSource
+      .getRepository(Ticket)
+      .find({ where: { assetId: In(assetIds), status: In([...OPEN_STATUSES]) } });
+    return {
+      visible: new Map(open.filter((t) => this.policy.canSee(user, t)).map((t) => [t.assetId, t])),
+      busy: new Set(open.map((t) => t.assetId)),
+    };
   }
 
   async detail(user: User, id: string): Promise<TicketView> {
