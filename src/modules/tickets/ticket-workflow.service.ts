@@ -5,7 +5,9 @@ import { InvalidTransition, NoteRequired } from '../../common/errors/domain-erro
 import { badRequest, conflict, notFound } from '../../common/errors/errors';
 import { Ticket, TicketAuditLog, TicketStatusLog, User } from '../../database/entities';
 import { Env } from '../../config/env';
+import { autoCloseAt } from '../../domain/auto-close';
 import { TicketStatus, UserRole } from '../../domain/enums';
+import { AUTO_CLOSE_BATCH } from '../../domain/limits';
 import {
   actorOf,
   ASSIGNABLE_STATUSES,
@@ -22,6 +24,7 @@ import { TicketPolicy } from './ticket-policy.service';
 import { TicketViewService } from './ticket-view.service';
 import {
   AssignTicketDto,
+  AutoClosedTicket,
   ChangeStatusDto,
   RejectTicketDto,
   ReopenTicketDto,
@@ -180,6 +183,67 @@ export class TicketWorkflowService {
       const ticket = await this.lockAndAuthorize(m, user, ticketId, '/cancel');
       await this.transition(m, user, ticket, 'cancelled', { via: '/cancel' });
       return this.views.one(user, ticket.id, m);
+    });
+  }
+
+  // --- job ปิดอัตโนมัติ (DESIGN 6.6, 6.11) ---
+  // cron และ POST /admin/jobs/auto-close/run เรียกตัวนี้ตัวเดียว ไม่มีทางลัด ไม่รับพารามิเตอร์ที่ข้ามเงื่อนไขเวลา
+
+  async closeIfStillDue(): Promise<AutoClosedTicket[]> {
+    const afterHours = this.config.get('AUTO_CLOSE_AFTER_HOURS', { infer: true });
+    const closed: AutoClosedTicket[] = [];
+    for (const id of await this.dueForAutoClose(afterHours)) {
+      try {
+        // ทรานแซกชันละใบ: ใบที่ปิดไม่ได้ไม่ดึงใบอื่นให้ rollback ตาม
+        const ticket = await this.dataSource.transaction((m) => this.autoCloseOne(m, id, afterHours));
+        if (ticket) {
+          closed.push({
+            id: ticket.id,
+            ticket_no: ticket.ticketNo,
+            status: ticket.status,
+            confirmed_by: ticket.confirmedBy,
+            close_reason: ticket.closeReason,
+          });
+        }
+      } catch (error) {
+        // ใบเดียวพังต้องไม่ล้มทั้งรอบ — log แล้วไปใบถัดไป (DESIGN 6.11)
+        this.logger.error(`ปิดอัตโนมัติใบ ${id} ไม่สำเร็จ: ${String(error)}`);
+      }
+    }
+    return closed;
+  }
+
+  // รายการที่ "ดูเหมือน" ครบกำหนด ณ ตอนเลือก — ยังไม่ใช่คำตัดสิน ต้องเช็คซ้ำหลัง lock ทีละใบ
+  // แยกเป็นเมธอดให้เทสแทรกการเปลี่ยนแปลงระหว่าง "เลือกรายการ" กับ "ลงมือปิด" ได้
+  async dueForAutoClose(afterHours: number): Promise<string[]> {
+    const rows: { id: string }[] = await this.dataSource.query(
+      `SELECT id FROM tickets
+        WHERE status = 'resolved' AND deleted_at IS NULL AND disputed_at IS NULL
+          AND resolved_at < now() - $1::float8 * interval '1 hour'
+        ORDER BY resolved_at
+        LIMIT $2`,
+      [afterHours, AUTO_CLOSE_BATCH],
+    );
+    return rows.map((r) => r.id);
+  }
+
+  private async autoCloseOne(m: EntityManager, ticketId: string, afterHours: number): Promise<Ticket | null> {
+    // SKIP LOCKED: ใบที่มีคนกำลัง confirm / reopen อยู่ ปล่อยไปก่อน รอบหน้าค่อยดูใหม่
+    // และรันซ้อนกันหลาย instance ได้โดยไม่ปิดใบเดียวกันสองรอบ
+    const ticket = await m.getRepository(Ticket).findOne({
+      where: { id: ticketId },
+      lock: { mode: 'pessimistic_write', onLocked: 'skip_locked' },
+    });
+    if (!ticket) return null;
+    // เช็คเงื่อนไขทั้งชุดซ้ำหลัง lock (DESIGN 6.11): ระหว่างเลือกรายการกับตอนนี้ ใบอาจถูก reopen แล้ว resolve
+    // รอบใหม่ (เวลาเริ่มนับใหม่) หรือมีคนกดเจอปัญหาเดียวกันจน disputed_at ถูกตั้ง → ข้ามเงียบ ๆ
+    // ใช้ autoCloseAt ตัวเดียวกับที่หน้าจอนับถอยหลัง — job จึงลงมือตรงกับเวลาที่ผู้พักเห็นเสมอ
+    const due = autoCloseAt(ticket, afterHours);
+    if (due === null || due.getTime() > Date.now()) return null;
+    this.policy.assertCan('auto_close', null, ticket);
+    return this.transition(m, null, ticket, 'closed', {
+      via: 'system:auto-close',
+      note: `ไม่มีผู้ยืนยันภายใน ${afterHours} ชั่วโมง ระบบปิดให้`,
     });
   }
 

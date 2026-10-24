@@ -425,3 +425,29 @@ export class CreateTicketsResponse {
   @ApiProperty({ type: [SkippedItemView], description: 'รายการที่ครุภัณฑ์มีใบเปิดอยู่แล้ว — เป็น array เสมอ' })
   skipped: SkippedItemView[];
 }
+
+// ผลของ job ปิดอัตโนมัติต่อใบ — confirmed_by = NULL + auto_closed คือหลักฐานว่าระบบปิด ไม่ใช่คนยืนยัน
+export class AutoClosedTicket {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'TK-2569-000123' })
+  ticket_no: string;
+
+  @ApiProperty({ enum: TICKET_STATUSES })
+  status: TicketStatus;
+
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  confirmed_by: string | null;
+
+  @ApiProperty({ enum: CLOSE_REASONS, nullable: true })
+  close_reason: CloseReason | null;
+}
+
+export class AutoCloseRunView {
+  @ApiProperty()
+  closed_count: number;
+
+  @ApiProperty({ type: [AutoClosedTicket] })
+  tickets: AutoClosedTicket[];
+}

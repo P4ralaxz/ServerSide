@@ -11,3 +11,6 @@ export const AUTO_URGENT_REPORT_COUNT = 10;
 
 export const TICKET_LIST_DEFAULT_LIMIT = 50;
 export const TICKET_LIST_MAX_LIMIT = 100;
+
+// job ปิดอัตโนมัติหยิบทีละไม่เกินเท่านี้ต่อรอบ (DESIGN 6.6) — ที่เหลือรอรอบถัดไป 15 นาที
+export const AUTO_CLOSE_BATCH = 100;
