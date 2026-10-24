@@ -104,6 +104,7 @@ interface Asset {
   id: string;
   roomId: string | null;
   title: string;
+  symptom: string;
 }
 
 interface Person {
@@ -116,17 +117,65 @@ interface Person {
 // แบ่งตามหมวดแทน "อื่น ๆ" ชิ้นเดียวต่อห้อง: ปัญหาคนละหมวดในห้องเดียวกันแจ้งพร้อมกันได้
 // ปัญหาสองเรื่องในหมวดเดียวกันยังชน 409 — เป็นข้อจำกัดที่ยอมรับ (DESIGN 12.1) ให้เพิ่มรายละเอียดทาง comment ของใบเดิม
 const GENERAL_ASSETS = [
-  { suffix: 'G-STRUCT', name: 'ผนัง / ฝ้า / พื้น', category: 'structure', title: 'ฝ้าเพดานมีคราบน้ำรั่ว' },
-  { suffix: 'G-DOOR', name: 'ประตู / หน้าต่าง / กุญแจ', category: 'door_window', title: 'กุญแจประตูฝืด ไขไม่เข้า' },
-  { suffix: 'G-ELEC', name: 'ไฟฟ้าทั่วไป', category: 'electrical', title: 'ปลั๊กไฟไม่มีไฟ' },
-  { suffix: 'G-PLUMB', name: 'ประปาทั่วไป', category: 'plumbing', title: 'ท่อระบายน้ำมีกลิ่นเหม็น' },
+  {
+    suffix: 'G-STRUCT',
+    name: 'ผนัง / ฝ้า / พื้น',
+    category: 'structure',
+    title: 'ฝ้าเพดานมีคราบน้ำรั่ว',
+    symptom: 'มีคราบน้ำเป็นวงตรงมุมห้อง ฝนตกแล้วหยด',
+  },
+  {
+    suffix: 'G-DOOR',
+    name: 'ประตู / หน้าต่าง / กุญแจ',
+    category: 'door_window',
+    title: 'กุญแจประตูฝืด ไขไม่เข้า',
+    symptom: 'ต้องกดลูกบิดค้างไว้ถึงจะไขได้',
+  },
+  {
+    suffix: 'G-ELEC',
+    name: 'ไฟฟ้าทั่วไป',
+    category: 'electrical',
+    title: 'ปลั๊กไฟไม่มีไฟ',
+    symptom: 'ปลั๊กข้างโต๊ะเสียบแล้วไฟไม่เข้า',
+  },
+  {
+    suffix: 'G-PLUMB',
+    name: 'ประปาทั่วไป',
+    category: 'plumbing',
+    title: 'ท่อระบายน้ำมีกลิ่นเหม็น',
+    symptom: 'มีกลิ่นขึ้นมาจากท่อในห้องน้ำตอนกลางคืน',
+  },
 ];
 
 const ROOM_ASSETS = [
-  { suffix: 'AC', name: 'เครื่องปรับอากาศ', category: 'electrical', title: 'แอร์ไม่เย็น' },
-  { suffix: 'LIGHT', name: 'หลอดไฟเพดาน', category: 'electrical', title: 'หลอดไฟกะพริบ' },
-  { suffix: 'TAP', name: 'ก๊อกน้ำอ่างล้างหน้า', category: 'plumbing', title: 'ก๊อกน้ำรั่ว' },
-  { suffix: 'BED', name: 'เตียงนอน', category: 'furniture', title: 'ขาเตียงหัก' },
+  {
+    suffix: 'AC',
+    name: 'เครื่องปรับอากาศ',
+    category: 'electrical',
+    title: 'แอร์ไม่เย็น',
+    symptom: 'เปิด 25 องศาแล้วมีแต่ลม ไม่เย็น',
+  },
+  {
+    suffix: 'LIGHT',
+    name: 'หลอดไฟเพดาน',
+    category: 'electrical',
+    title: 'หลอดไฟกะพริบ',
+    symptom: 'เปิดแล้วกะพริบ บางครั้งไม่ติด',
+  },
+  {
+    suffix: 'TAP',
+    name: 'ก๊อกน้ำอ่างล้างหน้า',
+    category: 'plumbing',
+    title: 'ก๊อกน้ำรั่ว',
+    symptom: 'น้ำหยดตลอดแม้ปิดสุดแล้ว',
+  },
+  {
+    suffix: 'BED',
+    name: 'เตียงนอน',
+    category: 'furniture',
+    title: 'ขาเตียงหัก',
+    symptom: 'ขาเตียงฝั่งหัวเตียงหัก เตียงเอียง',
+  },
   ...GENERAL_ASSETS,
 ];
 
@@ -137,16 +186,32 @@ const COMMON_ASSETS = [
     category: 'elevator',
     note: 'ลิฟต์ฝั่งตะวันออก',
     title: 'ลิฟต์ค้างระหว่างชั้น',
+    symptom: 'ประตูลิฟต์ปิดไม่สนิท ค้างบ่อยช่วงชั้น 3',
   },
-  { suffix: 'WATER', name: 'ตู้กดน้ำดื่ม', category: 'appliance', note: 'โถงชั้น 1', title: 'ตู้กดน้ำไม่เย็น' },
+  {
+    suffix: 'WATER',
+    name: 'ตู้กดน้ำดื่ม',
+    category: 'appliance',
+    note: 'โถงชั้น 1',
+    title: 'ตู้กดน้ำไม่เย็น',
+    symptom: 'กดฝั่งน้ำเย็นแล้วได้น้ำอุณหภูมิห้อง',
+  },
   {
     suffix: 'WASH',
     name: 'เครื่องซักผ้า',
     category: 'appliance',
     note: 'ห้องซักล้างชั้น 1',
     title: 'เครื่องซักผ้าไม่ปั่น',
+    symptom: 'ครบรอบแล้วผ้ายังเปียกโชก ไม่ปั่นหมาด',
   },
-  { suffix: 'HALL', name: 'ไฟทางเดิน', category: 'electrical', note: 'ทางเดินชั้น 3', title: 'ไฟทางเดินดับ' },
+  {
+    suffix: 'HALL',
+    name: 'ไฟทางเดิน',
+    category: 'electrical',
+    note: 'ทางเดินชั้น 3',
+    title: 'ไฟทางเดินดับ',
+    symptom: 'ไฟดับทั้งแถวช่วงหน้าลิฟต์',
+  },
   ...GENERAL_ASSETS.map((a) => ({ ...a, note: 'พื้นที่ส่วนกลางทั้งอาคาร' })),
 ];
 
@@ -174,7 +239,7 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
     const assets: Asset[] = [];
     const addAsset = async (
       code: string,
-      a: { name: string; category: string; title: string; note?: string },
+      a: { name: string; category: string; title: string; symptom: string; note?: string },
       buildingId: string,
       roomId: string | null,
     ) => {
@@ -184,7 +249,7 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [id, code, a.name, a.category, buildingId, roomId, a.note ?? null, randomBytes(16).toString('hex')],
       );
-      assets.push({ id, roomId, title: a.title });
+      assets.push({ id, roomId, title: a.title, symptom: a.symptom });
     };
 
     const buildingCodes = ['D1', 'D2'];
@@ -452,7 +517,7 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
           t.status,
           t.priority,
           t.asset.title,
-          null,
+          t.asset.symptom, // อาการบังคับที่ API (DESIGN 7.7) — ใบเดโมต้องมีเหมือนใบที่สร้างจากหน้าจอ
           t.secondReporter ? 2 : 1,
           t.reopenCount,
           t.permissionToEnter,

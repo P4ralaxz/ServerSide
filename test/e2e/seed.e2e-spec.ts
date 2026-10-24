@@ -253,6 +253,14 @@ describe('seed', () => {
     expect(Number(row.reporters)).toBe(1);
   });
 
+  // อาการบังคับที่ API (DESIGN 7.7) — ใบเดโมที่ไม่มีอาการคือใบที่หน้าจอสร้างไม่ได้ และการ์ด "อาการ" จะว่าง
+  it('ทุกใบมีอาการ', async () => {
+    const [row]: { n: string }[] = await ds.query(
+      `SELECT count(*) AS n FROM tickets WHERE description IS NULL OR btrim(description) = ''`,
+    );
+    expect(Number(row.n)).toBe(0);
+  });
+
   it('ticket_counters ตามทันเลขใบสูงสุดของปี พ.ศ. นั้น', async () => {
     const beYear = thaiBuddhistYear(now);
     const [row]: { last_no: number; used: string }[] = await ds.query(
