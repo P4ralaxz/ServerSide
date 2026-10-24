@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { TICKET_STATUSES, TicketStatus } from '../../domain/enums';
-import { UiAction } from '../../domain/status-rules';
+import { UI_ACTIONS, UiAction } from '../../domain/status-rules';
 import { BuildingRefView, RoomRefView } from '../tickets/tickets.dto';
 
 export class ScanAssetView {
@@ -42,7 +42,12 @@ export class ScanOpenTicketView {
   @ApiProperty({ description: 'ผู้ใช้คนนี้แจ้งหรือกดเจอปัญหาเดียวกันไปแล้ว — หน้าจอซ่อนปุ่ม "เจอปัญหาเดียวกัน"' })
   reported_by_me: boolean;
 
-  @ApiProperty({ isArray: true, type: String, description: 'ชุดเดียวกับ actions ของ GET /tickets/:id' })
+  @ApiProperty({
+    isArray: true,
+    enum: UI_ACTIONS,
+    enumName: 'UiAction',
+    description: 'ชุดเดียวกับ actions ของ GET /tickets/:id',
+  })
   actions: UiAction[];
 }
 

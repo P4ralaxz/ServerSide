@@ -19,7 +19,13 @@
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
     "seed": "ts-node src/database/seed/seed.ts",
     "test": "jest",
-    "test:e2e": "jest --config test/jest-e2e.json --runInBand"
+    "test:e2e": "jest --config test/jest-e2e.json --runInBand",
+    "web:dev": "npm --prefix web run dev",
+    "web:build": "npm --prefix web run build",
+    "web:lint": "npm --prefix web run lint",
+    "web:typecheck": "npm --prefix web run typecheck",
+    "web:e2e": "npm --prefix web run e2e",
+    "web:types": "ts-node test/contract/write-web-types.ts"
   },
   "jest": {
     "preset": "ts-jest",

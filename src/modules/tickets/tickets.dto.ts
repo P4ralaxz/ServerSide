@@ -31,7 +31,7 @@ import {
   TicketStatus,
 } from '../../domain/enums';
 import { MAX_ITEMS_PER_BATCH, TICKET_LIST_DEFAULT_LIMIT, TICKET_LIST_MAX_LIMIT } from '../../domain/limits';
-import { UiAction } from '../../domain/status-rules';
+import { UI_ACTIONS, UiAction } from '../../domain/status-rules';
 
 export class CreateTicketItemDto {
   @ApiProperty({ format: 'uuid', description: 'ครุภัณฑ์ที่มีปัญหา — ห้องและอาคารอ่านจากครุภัณฑ์เอง' })
@@ -345,9 +345,11 @@ export class TicketView {
   })
   auto_close_at: Date | null;
 
+  // enum ทำให้ type ของหน้าเว็บที่สร้างจาก Swagger เป็นชื่อปุ่มจริง ไม่ใช่ string[] ที่พิมพ์ชื่อผิดได้
   @ApiProperty({
     isArray: true,
-    type: String,
+    enum: UI_ACTIONS,
+    enumName: 'UiAction',
     description: 'ปุ่มที่ผู้ใช้คนนี้กดกับใบนี้ได้ตอนนี้ — หน้าจอแสดงปุ่มจากค่านี้เท่านั้น',
   })
   actions: UiAction[];
