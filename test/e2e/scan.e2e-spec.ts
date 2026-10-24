@@ -176,7 +176,7 @@ describe('scan + open_ticket ของครุภัณฑ์', () => {
           const post = await http()
             .post('/tickets')
             .set(await as(fx[u]))
-            .send({ items: [{ asset_id: fx[a], title: 'ทดสอบ' }] });
+            .send({ items: [{ asset_id: fx[a], title: 'ทดสอบ', description: 'ทดสอบ' }] });
           if (scanned.body.can_report !== (post.status === 201)) {
             mismatches.push(`${u} × ${a}: can_report=${scanned.body.can_report} แต่ POST ได้ ${post.status}`);
           }

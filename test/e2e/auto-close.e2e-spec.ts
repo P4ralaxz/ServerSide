@@ -165,7 +165,7 @@ describe('auto-close job', () => {
       const res = await http()
         .post('/tickets')
         .set(await as(fx.alice))
-        .send({ items: [{ asset_id: fx.ac1, title: 'เสียอีกแล้ว' }] });
+        .send({ items: [{ asset_id: fx.ac1, title: 'เสียอีกแล้ว', description: 'เสียอีกแล้ว' }] });
       expect(res.status).toBe(201);
     });
 

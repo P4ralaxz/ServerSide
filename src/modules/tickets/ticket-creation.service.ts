@@ -243,7 +243,7 @@ export class TicketCreationService {
         asset.roomId,
         user.id,
         item.title,
-        item.description ?? null,
+        item.description,
         item.permission_to_enter ?? false,
       ],
     );

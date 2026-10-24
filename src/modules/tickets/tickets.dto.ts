@@ -44,11 +44,13 @@ export class CreateTicketItemDto {
   @MaxLength(200)
   title: string;
 
-  @ApiPropertyOptional({ type: String, nullable: true, example: 'มีแต่ลม' })
-  @IsOptional()
+  // บังคับที่ API ด้วย ไม่ใช่แค่ในฟอร์ม (DESIGN 7.7, 12.3 ข้อ 9): ใบที่ไม่มีอาการช่างเตรียมของไม่ได้
+  // และคนยิง API ตรงต้องสร้างใบแบบนั้นไม่ได้เหมือนกัน · หน้าจอส่งชื่อครุภัณฑ์เป็น title และอาการเป็น description
+  @ApiProperty({ example: 'มีแต่ลม', description: 'อาการ — บังคับ' })
   @IsString()
+  @IsNotEmpty()
   @MaxLength(2000)
-  description?: string | null;
+  description: string;
 
   @ApiPropertyOptional({ default: false, description: 'อนุญาตให้ช่างเข้าห้องได้เลย — ใช้กับครุภัณฑ์ในห้องพักเท่านั้น' })
   @IsOptional()

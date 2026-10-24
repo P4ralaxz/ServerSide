@@ -217,9 +217,9 @@ describe('tickets', () => {
 
     // @parity test_asset_fills_in_room_and_building — P*: ไม่มี tickets.building
     it('ส่งแค่ asset_id พอ — scope และห้องอ่านจากครุภัณฑ์', async () => {
-      const room = (await post(dorm.alice, { asset_id: dorm.ac1, title: 'x' })).body.created[0];
-      expect(room).toMatchObject({ asset_id: dorm.ac1, scope: 'room', room_id: dorm.room1, description: null });
-      const common = (await post(dorm.alice, { asset_id: dorm.lift2, title: 'x' })).body.created[0];
+      const room = (await post(dorm.alice, { asset_id: dorm.ac1, title: 'x', description: 'y' })).body.created[0];
+      expect(room).toMatchObject({ asset_id: dorm.ac1, scope: 'room', room_id: dorm.room1, description: 'y' });
+      const common = (await post(dorm.alice, { asset_id: dorm.lift2, title: 'x', description: 'y' })).body.created[0];
       expect(common).toMatchObject({ scope: 'common_area', room_id: null, building_id: dorm.d2 });
     });
 
@@ -259,6 +259,20 @@ describe('tickets', () => {
       expect(res.status).toBe(400);
       expect(res.body.code).toBe('VALIDATION_FAILED');
     });
+
+    // DESIGN 7.7 / 12.3 ข้อ 9: อาการบังคับที่ API ด้วย ไม่ใช่แค่ในฟอร์ม — คนยิง API ตรงต้องโดนบล็อกเหมือนกัน
+    // รายการเดียวที่ไม่มีอาการทำให้ทั้งคำขอเป็น 400 (validate ก่อนสร้าง ไม่ใช่ข้ามรายการนั้น)
+    it.each([{}, { description: '' }, { description: null }])(
+      'ไม่มีอาการ %j → 400 ที่ช่อง description',
+      async (over) => {
+        const noDesc = { asset_id: dorm.ac1, title: 'แอร์ไม่เย็น' };
+        const res = await post(dorm.alice, { ...noDesc, ...over }, item(dorm.wh1));
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe('VALIDATION_FAILED');
+        expect(JSON.stringify(res.body.details)).toContain('description');
+        expect(await countTickets()).toBe(0);
+      },
+    );
 
     it('ไม่มี title หรือส่งฟิลด์ที่ระบบเป็นคนกำหนด (status / priority / reporter_id) → 400', async () => {
       expect((await post(dorm.alice, { asset_id: dorm.ac1 })).status).toBe(400);

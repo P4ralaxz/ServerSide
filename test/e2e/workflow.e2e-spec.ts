@@ -609,7 +609,7 @@ describe('workflow', () => {
       const res = await http()
         .post('/tickets')
         .set(await as(dorm.alice))
-        .send({ items: [{ asset_id: dorm.ac1, title: 'เสียอีกแล้ว' }] });
+        .send({ items: [{ asset_id: dorm.ac1, title: 'เสียอีกแล้ว', description: 'เสียอีกแล้ว' }] });
       expect(res.status).toBe(201);
     });
 
