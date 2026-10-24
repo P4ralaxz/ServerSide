@@ -25,7 +25,7 @@
 | `X` | **ตกไป** — ฟีเจอร์/คอลัมน์ที่ DESIGN ไม่มี ไม่มีที่ลง |
 | `B` | **blocked** — รอคำตอบ DESIGN หัวข้อ 12 หรือคำถามในรายงาน |
 
-สถานะล่าสุด (13 ต.ค. 2569 จบสัปดาห์ 4): แปลแล้ว 185 จาก 252 — เหลือหมวด 5 (auto-close), 6 (reports), 7 (QR/scan) และ reopen
+สถานะล่าสุด (24 ต.ค. 2569 จบสัปดาห์ 5): แปลแล้ว 238 จาก 252 — ที่เหลือคือเคส `X` 11 เคส และหน้า scan ที่เปิดได้โดยไม่ต้อง login 3 เคส (รอ SPA ใน UI-1)
 
 ---
 
@@ -251,7 +251,7 @@
 | 133 | `test_reassign_resets_appointment_and_leaves_trail` | S | ขั้นไม่เปลี่ยน → ลง `ticket_audit_logs` action `reassign` ไม่ใช่ status log |
 | 134 | `test_reassign_takes_ticket_away_from_previous_technician` | P | |
 | 135 | `test_assigning_same_technician_twice_is_409` | P | |
-| 136 | `test_cannot_assign_resolved_ticket` | S | แปลครึ่ง `/assign` → 409 ด้วย `TRANSITION_ONLY_VIA` แล้ว · ครึ่ง `/reopen` รอสัปดาห์ 5 |
+| 136 | `test_cannot_assign_resolved_ticket` | S | `/assign` → 409 ด้วย `TRANSITION_ONLY_VIA` · ครึ่ง `/reopen` แปลแล้วสัปดาห์ 5 |
 
 ### schedule (7)
 
@@ -314,7 +314,7 @@
 | 177 | `test_closed_ticket_frees_the_asset_for_a_new_report` | P | |
 | 178 | `test_priority_and_status_both_land_in_one_history` | S | แยกสองตารางแล้ว → `GET /history` ต้อง merge สองแหล่ง |
 | 179 | `test_priority_log_row_is_marked_with_priority_to` | S | `priority_to` ไม่มีแล้ว → เทียบ `ticket_audit_logs.detail {from,to}` แทน (แปลแล้ว) |
-| — | reopen: `resolved → assigned`, คงช่างเดิม, note บังคับ, `reopen_count += 1` | **ใหม่** | DESIGN 3.3 — ทำสัปดาห์ 5 |
+| — | reopen: `resolved → assigned`, คงช่างเดิม, note บังคับ, `reopen_count += 1` | **ใหม่** | DESIGN 3.3 — **เสร็จแล้ว** สัปดาห์ 5 (`reopen.e2e-spec.ts`) |
 
 ---
 
@@ -726,6 +726,102 @@ query param ของ `GET /tickets` ชุดเดียวกับของ�
 ไฟล์เทสของหมวด 4: `test/e2e/workflow.e2e-spec.ts` (95) · `test/e2e/workflow-concurrency.e2e-spec.ts` (4) ·
 `test/e2e/ticket-actions.e2e-spec.ts` (17 — contract ของ `actions` ตาม P8 ไม่ใช่เทสเดิม)
 
+## สัปดาห์ 5 — reopen + หมวด 5 auto-close (18) + หมวด 6 reports (30) + หมวด 7 QR / scan (15)
+
+ไฟล์เทส: `test/e2e/reopen.e2e-spec.ts` (31) · `test/e2e/auto-close.e2e-spec.ts` (24) · `test/e2e/reports.e2e-spec.ts` (35) ·
+`test/e2e/qr.e2e-spec.ts` (7) · `test/e2e/scan.e2e-spec.ts` (16) · `test/e2e/queue.e2e-spec.ts` (13)
+คำตอบที่ใช้ (24 ต.ค. 2569): QR ใช้ library `qrcode` · ตัวนับ "เกิน SLA" ตัดออกจากจอ (DESIGN 12.3 ข้อ 8)
+
+### reopen — ปิดหมวด 4
+
+| เคส | ป้ายที่ใช้จริง | สิ่งที่ต่างจากของเดิม |
+|---|---|---|
+| 136 `cannot_assign_resolved_ticket` | S | **แปลครบ** — ครึ่ง `/reopen`: ใบ resolved กลับไปหาช่างได้ทาง `/reopen` เท่านั้น ช่างคนเดิม |
+| — reopen (เคสใหม่ท้ายหมวด 4) | ใหม่ | note บังคับ (400) · `reopen_count += 1` · ล้าง `resolved_at` / `disputed_at` / `confirmed_by` · ผู้พัก/รูมเมทกดได้ staff/admin กดใบห้องพักไม่ได้ · ส่วนกลาง = staff · เมลหาช่าง + staff หลัง commit |
+| — `VIA_ACTION` (เคสใหม่) | ใหม่ | student กด `/reopen` ได้ แต่กด `/assign` ไม่ได้ ทั้งที่ปลายทางเป็น `assigned` ทั้งคู่ |
+
+เคสใหม่ที่เกิดจากบั๊กที่เจอระหว่างทำ: Staff ยิง `/reopen` กับใบส่วนกลางที่ open / in_progress / pending_parts → 409
+(`ENDPOINT_ONLY_PAIRS` ผูก `/reopen` กับคู่ `resolved->assigned` คู่เดียว — ดู DESIGN 3.1)
+
+### auto-close (18)
+
+| เคส | ป้ายที่ใช้จริง | สิ่งที่ต่างจากของเดิม |
+|---|---|---|
+| 180 `closes_ticket_nobody_confirmed` | P* | + `close_reason = auto_closed` |
+| 181 `auto_close_writes_a_log_with_no_actor` | P | note บอกจำนวน**ชั่วโมง** (`AUTO_CLOSE_AFTER_HOURS`) ไม่ใช่วัน |
+| 182, 186–189, 191 | P | ไม่ต่าง |
+| 183–185 `only_resolved_tickets_are_closed` ×3 | P* | `new` → `open` |
+| 190 `closes_several_tickets_in_one_run` | P* | `LIMIT 100` + `FOR UPDATE SKIP LOCKED` ทีละใบ |
+| 192 `admin_can_trigger_the_job` | P* | `POST /admin/jobs/auto-close/run` · ไม่มี `dry_run` ใน body |
+| 193 `dry_run_changes_nothing` | X | endpoint ไม่รับพารามิเตอร์ — มีเทสว่าพารามิเตอร์แปลก ๆ ข้ามเงื่อนไขเวลาไม่ได้แทน |
+| 194–196 `only_admin_can_trigger_the_job` ×3 | P* | staff ก็ไม่ได้ (admin ⊇ staff แต่ไม่ใช่กลับกัน) |
+| 197 `job_requires_login` | P* | |
+
+เคสใหม่: ใบส่วนกลางที่มีคนแย้งถูกข้าม · **เช็คซ้ำหลัง lock**: reopen + resolve ใหม่ระหว่างรอบ → ไม่ปิด / มีคนกดเจอปัญหาเดียวกันระหว่างรอบ → ไม่ปิด ·
+ใบหนึ่ง error (trigger ใน DB) → ใบอื่นยังถูกปิด · confirm พร้อมกับ job → log `resolved → closed` แถวเดียว ·
+เส้นทาง dispute → reopen → resolve → ครบกำหนด → ปิดอัตโนมัติได้
+
+### reports (30)
+
+endpoint: `GET /reports/sla-summary` (จัดกลุ่ม `group_by` = building / category / technician / month) · `/stage-durations` · `/technicians`
+
+| เคส | ป้ายที่ใช้จริง | สิ่งที่ต่างจากของเดิม |
+|---|---|---|
+| 198 `summary_groups_by_building_and_category` | P* | อาคาร/หมวดจาก join `assets` · ค่าเริ่มต้น `group_by=building,category` |
+| 199 `summary_counts_closed_rejected_and_open` | P | + `cancelled_tickets` แยกช่องจาก `rejected_tickets` |
+| 200 `summary_separates_auto_closed_from_user_confirmed` | P* | แยกด้วย `close_reason` 3 ค่า + `closed_while_disputed` |
+| 201 `summary_counts_overdue_and_breached` | P* | `overdue_open` / `over_sla` คิดจาก `SLA_TARGET_HOURS` ตอนออกรายงาน |
+| 202 `summary_average_hours_to_close` | P* | แยกเป็น `avg_repair_hours` (จบที่ resolved) + `avg_confirm_hours` |
+| 203 `summary_filters` | P* | `building_id` / `category` / `from`–`to` เป็นวันตามเวลาไทย |
+| 204, 205–210, 211–213, 214 | P | ไม่ต่าง (admin อ่านได้ทั้ง 3 รายงาน) |
+| 215 `stage_durations_read_from_logs` | P* | อ่านจาก `v_ticket_stage_durations` + `counted_in_sla` |
+| 216 `priority_change_rows_do_not_split_a_stage` | S | priority อยู่ใน audit log คนละตาราง — เทสว่าขั้นไม่แตก |
+| 217, 218, 219, 221, 222, 227 | P | 219 + `cancelled` |
+| 220 `stage_durations_respect_filters` | P* | `building_id` |
+| 223 `reassignment_attributes_time_to_the_new_technician` | S | จุดเริ่มของช่างคนใหม่อ่านจาก audit `reassign` |
+| 224 `late_resolved_is_counted` | P* | เทียบกับ `SLA_TARGET_HOURS` ของ priority |
+| 225 `reassignment_does_not_split_the_assigned_stage` | S | เปลี่ยนตัวช่างตอน assigned ไม่มี status log → ขั้นเป็นก้อนเดียวโดยโครงสร้าง |
+| 226 `priority_change_does_not_look_like_a_new_assignment` | S | audit `priority` ไม่ถูกนับเป็นจุดรับงาน |
+
+เคสใหม่: **ช่วง pending_parts ไม่ถูกนับในเวลาซ่อม** · **ใบที่แจ้ง 01:00 วันที่ 1 (เวลาไทย) อยู่ในเดือนใหม่** ·
+ช่วงรอยืนยันรอบก่อนของใบที่ถูกส่งกลับไม่นับ · จัดกลุ่มตามช่าง (ใบไม่มีช่าง = `null`) ·
+การส่งกลับนับให้ช่างที่กดซ่อมเสร็จรอบนั้น · รออะไหล่ไม่นับเป็นเวลาของช่าง · soft delete ไม่ถูกนับใน**ทั้ง 3 รายงาน**
+
+### QR / scan (15)
+
+| เคส | ป้ายที่ใช้จริง | สิ่งที่ต่างจากของเดิม |
+|---|---|---|
+| 228 `qr_holds_only_a_scan_url` | P* | `/app/scan/<qr_token>` — เทียบภาพกับภาพของลิงก์ที่คาด (สร้างแบบกำหนดได้) |
+| 231 `png_is_a_real_png` | P* | `GET /assets/:id/qr` staff/admin · `X-Scan-Url` |
+| 233 `unknown_code_is_404` | P | ทั้ง `/assets/:id/qr` และ `GET /scan/:qrToken` |
+| 234 `deleted_asset_has_no_qr` | P | ทั้งสองที่ |
+| 235 `qr_requires_login` | P | ทั้งสองที่ |
+| 229, 230, 232, 236–239 | X | ตามภาคผนวก (ไม่มี `/qr/:code/url`, QR ห้อง, SVG, ใบพิมพ์รวม) |
+| 240–242 หน้า scan เปิดได้โดยไม่ต้อง login | P | **ยังไม่แปล** — หน้า `/app/scan/:qrToken` เป็นของ SPA ที่ Nest เสิร์ฟใน UI-1 |
+
+เคสใหม่ (DESIGN 7.4, 7.5): **สแกน QR ของห้องอื่นไม่เห็นใบของห้องนั้น** · **`can_report` ตรงกับผลจริงของ `POST /tickets` ทุกคู่ผู้ใช้ × ครุภัณฑ์** ·
+`reported_by_me` · `actions` ชุดเดียวกับ 7.1 · `/assets` ส่ง `open_ticket` ผ่าน `canSee` · นักศึกษาขอ `room_id` ห้องอื่น → 403
+
+### เคสของสัปดาห์ก่อนที่เปลี่ยนความคาดหวัง
+
+| เคส | เดิม | ใหม่ | เหตุผล |
+|---|---|---|---|
+| 54 `asset_filters_and_qr_lookup` (ส่วน filter) | นักศึกษากรอง `room_id` ห้องไหนก็ได้ | นักศึกษากรองห้องที่ไม่ได้พัก → **403** · staff กรองได้ | DESIGN 7.5 |
+
+### สรุปป้ายหลังสัปดาห์ 5
+
+| ป้าย | เคส |
+|---|---|
+| `P` / `P*` | **203** (ไม่เปลี่ยน) |
+| `S` superseded | **31** |
+| `X` ตกไปถาวร | **17** |
+| `B` ยังรอคำตอบ | **1** — ข้อ 19 (ทำเป็น 401 ไว้ก่อน) |
+| รวม | **252** |
+
+แปลแล้วสะสม: 133 (หมวด 8, 1, 2, 3) + หมวด 4 (53 จาก 56) + หมวด 5 (17 จาก 18) + หมวด 6 (30 จาก 30) + หมวด 7 (5 จาก 15) = **238 จาก 252**
+
+ที่เหลือ 14 เคส: `X` 11 เคสในหมวด 4–7 (161–163, 193, 229, 230, 232, 236–239) · รอ UI-1 3 เคส (240–242)
+
 ## TODO ที่เลื่อนออกไป (อนุมัติ 6 ต.ค. 2569)
 
 | เรื่อง | ทำเมื่อไหร่ | หมายเหตุ |
@@ -737,3 +833,4 @@ query param ของ `GET /tickets` ชุดเดียวกับของ�
 | ~~`/assign` ต้อง lock แถว `users` ของช่างก่อนมอบงาน~~ | ~~สัปดาห์ 4~~ | **เสร็จแล้ว** — `FOR SHARE` ชนกับ `FOR UPDATE` ตอนระงับช่าง มีเทส concurrency คุม |
 | ~~seed: audit log ของ assign / priority~~ | ~~สัปดาห์ 4~~ | **เสร็จแล้ว** — assign / priority / schedule พร้อม invariant test |
 | ~~seed: ใบแบบ batch (หลายใบ `batch_id` เดียวกัน)~~ | ~~สัปดาห์ 4~~ | **เสร็จแล้ว** — 2 ใบคนละครุภัณฑ์ ผู้แจ้งคนเดียวกัน |
+| เคส 240–242 หน้า `/app/scan/:qrToken` เปิดได้โดยไม่ต้อง login และไม่มีข้อมูลในตัว | UI-1 | Nest เสิร์ฟ `web/dist` ที่ `/app` — ตอนนั้นหน้า scan จึงมีจริงให้เทส |
