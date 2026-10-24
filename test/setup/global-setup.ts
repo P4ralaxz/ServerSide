@@ -1,6 +1,9 @@
 import '../../src/common/time/utc';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { randomBytes } from 'node:crypto';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { DataSource } from 'typeorm';
 import { dataSourceOptions } from '../../src/database/data-source';
 
@@ -18,9 +21,22 @@ export default async function globalSetup(): Promise<void> {
   process.env.JWT_SECRET = randomBytes(32).toString('hex');
   process.env.OTP_SECRET = randomBytes(32).toString('hex');
   process.env.JWT_EXPIRES_IN = '8h';
+  process.env.WEB_DIST_DIR = writeWebFixture();
 
   const ds = new DataSource(dataSourceOptions(process.env.DATABASE_URL));
   await ds.initialize();
   await ds.runMigrations();
   await ds.destroy();
 }
+
+// build ปลอมของหน้าเว็บ — เทสฝั่ง Nest ตรวจแค่การเสิร์ฟ /app (ไม่ผ่าน guard, ทุก path ได้ index.html, API ไม่เปลี่ยน)
+// จึงไม่ต้องรอ web:build ก่อนรัน test:e2e · หน้าเว็บจริงเทสด้วย Playwright บน web/dist
+export const WEB_FIXTURE_INDEX =
+  '<!doctype html><title>fixture</title><div id="root"></div><script type="module" src="/app/assets/index.js"></script>';
+const writeWebFixture = (): string => {
+  const dir = mkdtempSync(join(tmpdir(), 'dorm-web-'));
+  mkdirSync(join(dir, 'assets'));
+  writeFileSync(join(dir, 'index.html'), WEB_FIXTURE_INDEX);
+  writeFileSync(join(dir, 'assets', 'index.js'), 'console.log("fixture")');
+  return dir;
+};

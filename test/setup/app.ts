@@ -1,6 +1,7 @@
 import { INestApplication, Type } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
+import { AbstractLoader, ExpressLoader } from '@nestjs/serve-static';
 import { ThrottlerStorage } from '@nestjs/throttler';
 import { AppModule } from '../../src/app.module';
 import { configureApp } from '../../src/app.setup';
@@ -88,6 +89,10 @@ export const createTestApp = async (extraControllers: Type[] = []): Promise<Test
   })
     .overrideProvider(MailService)
     .useValue(mail)
+    // TestingModule สร้าง provider ก่อนมี http adapter → factory ของ serve-static เลือก NoopLoader แล้ว /app ไม่ถูกเสิร์ฟ
+    // NestFactory.create ของจริงมี adapter ก่อนจึงได้ ExpressLoader อยู่แล้ว — ตัวนี้ register ตอน onModuleInit ซึ่งมี adapter แล้ว
+    .overrideProvider(AbstractLoader)
+    .useValue(new ExpressLoader())
     .compile();
   const app = moduleRef.createNestApplication();
   configureApp(app);

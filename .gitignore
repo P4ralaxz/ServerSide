@@ -4,3 +4,6 @@ coverage/
 *.tsbuildinfo
 .env
 uploads/
+web/test-results/
+web/playwright-report/
+web/e2e/.tmp/

@@ -22,6 +22,9 @@ const schema = z.object({
   // 72 = 3 วันตามกฎข้อ 2 — อยู่ใน env เพื่อย่อลงตอนซ้อมเดโมได้โดยไม่แก้โค้ด
   AUTO_CLOSE_AFTER_HOURS: z.coerce.number().positive().default(72),
   AUTO_CLOSE_CRON_ENABLED: bool.default(false),
+
+  // ไฟล์ build ของหน้าเว็บ (UI-PLAN 7) — ไม่ระบุ = web/dist ของ repo · e2e ชี้ไปโฟลเดอร์ทดสอบได้โดยไม่ต้อง build ก่อน
+  WEB_DIST_DIR: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof schema>;

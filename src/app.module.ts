@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
+import { join } from 'node:path';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ServeStaticModule } from '@nestjs/serve-static';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtAuthGuard } from './common/auth/jwt.guard';
 import { RolesGuard } from './common/auth/roles.guard';
@@ -43,6 +45,19 @@ import { UsersService } from './modules/users/users.service';
     AuthModule,
     // job ปิดอัตโนมัติ (DESIGN 6.6) — เปิด/ปิดด้วย AUTO_CLOSE_CRON_ENABLED ที่ตัว job
     ScheduleModule.forRoot(),
+    // หน้าเว็บอยู่ใต้ /app ทั้งหมด (UI-PLAN 1, 7) — path ของ API ไม่เปลี่ยนและไม่ต้องตั้ง CORS
+    // /app/* ที่ไม่ใช่ไฟล์จริงได้ index.html เพื่อให้ router ของ SPA เลือกหน้าเอง เช่น ลิงก์ใน QR /app/scan/:qrToken
+    // เป็น middleware ของ express ไม่ผ่าน guard: หน้าเว็บเปิดได้โดยไม่ต้อง login ส่วนข้อมูลยังต้องมี token ที่ API
+    ServeStaticModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Env, true>) => [
+        {
+          // src/ ตอน ts-node และ dist/ ตอน build อยู่ลึกชั้นเดียวกัน ../web/dist จึงชี้ที่เดียวกันทั้งสองแบบ
+          rootPath: config.get('WEB_DIST_DIR', { infer: true }) ?? join(__dirname, '..', 'web', 'dist'),
+          serveRoot: '/app',
+        },
+      ],
+    }),
   ],
   controllers: [
     HealthController,
