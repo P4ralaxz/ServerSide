@@ -24,6 +24,7 @@ import {
   CreateTicketsResponse,
   HistoryEntryView,
   ListTicketsQuery,
+  QueueCountsView,
   RejectTicketDto,
   ReopenTicketDto,
   ScheduleTicketDto,
@@ -69,6 +70,19 @@ export class TicketsController {
   @ApiBadRequestResponse()
   list(@CurrentUser() user: User, @Query() q: ListTicketsQuery): Promise<TicketView[]> {
     return this.query.list(user, q);
+  }
+
+  // ต้องประกาศก่อน :id ไม่งั้น "queue-counts" ถูกจับเป็น id แล้วโดน ParseUUIDPipe ตอบ 400
+  @Get('queue-counts')
+  @Roles('staff')
+  @ApiOperation({
+    summary: 'ตัวเลขบนตัวกรองคิวของ Staff ในคำขอเดียว (staff, admin)',
+    description: 'แต่ละตัวเท่ากับจำนวนรายการของ GET /tickets เมื่อกรองด้วย param ที่คู่กัน',
+  })
+  @ApiOkResponse({ type: QueueCountsView })
+  @ApiForbiddenResponse({ description: 'role ไม่มีสิทธิ์' })
+  queueCounts(@CurrentUser() user: User): Promise<QueueCountsView> {
+    return this.query.queueCounts(user);
   }
 
   @Get(':id')

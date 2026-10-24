@@ -3,9 +3,10 @@ import { DataSource } from 'typeorm';
 import { notFound } from '../../common/errors/errors';
 import { Ticket, TicketAuditLog, TicketStatusLog, User } from '../../database/entities';
 import { TICKET_LIST_DEFAULT_LIMIT } from '../../domain/limits';
+import { QUEUE_COUNTERS, QueueCounter, ticketFilters } from './ticket-filters';
 import { TicketPolicy } from './ticket-policy.service';
 import { TicketViewService } from './ticket-view.service';
-import { HistoryEntryView, ListTicketsQuery, TicketView, UserRefView } from './tickets.dto';
+import { HistoryEntryView, ListTicketsQuery, QueueCountsView, TicketView, UserRefView } from './tickets.dto';
 
 @Injectable()
 export class TicketQueryService {
@@ -18,19 +19,7 @@ export class TicketQueryService {
   async list(user: User, q: ListTicketsQuery): Promise<TicketView[]> {
     // ตัวกรองจากผู้ใช้ซ้อนบน visibilityFilter เสมอ — กรองยังไงก็ไม่มีทางได้ใบที่ตัวเองมองไม่เห็น
     const qb = this.policy.visibilityFilter(user, this.dataSource.getRepository(Ticket).createQueryBuilder('t'));
-
-    if (q.status?.length) qb.andWhere('t.status IN (:...status)', { status: q.status });
-    if (q.scope) qb.andWhere('t.scope = :scope', { scope: q.scope });
-    if (q.room_id) qb.andWhere('t.room_id = :roomId', { roomId: q.room_id });
-    if (q.asset_id) qb.andWhere('t.asset_id = :assetId', { assetId: q.asset_id });
-    if (q.batch_id) qb.andWhere('t.batch_id = :batchId', { batchId: q.batch_id });
-    if (q.mine) qb.andWhere('t.reporter_id = :me', { me: user.id });
-    // tickets ไม่มี building ของตัวเอง — อาคารคืออาคารของครุภัณฑ์
-    if (q.building_id) {
-      qb.andWhere('t.asset_id IN (SELECT a.id FROM assets a WHERE a.building_id = :buildingId)', {
-        buildingId: q.building_id,
-      });
-    }
+    for (const f of ticketFilters(q, user.id)) qb.andWhere(f.sql, f.params);
 
     const tickets = await qb
       .orderBy('t.created_at', 'DESC')
@@ -41,6 +30,19 @@ export class TicketQueryService {
 
     // join ทั้งหมดทำเป็นชุดใน TicketViewService — จำนวน query ไม่ขึ้นกับจำนวนใบในหน้านี้
     return this.views.of(user, tickets);
+  }
+
+  // ตัวเลขทุกชิปในคำสั่งเดียว: COUNT(*) FILTER ต่อตัวนับ โดยเงื่อนไขมาจาก ticketFilters ตัวเดียวกับ GET /tickets
+  async queueCounts(user: User): Promise<QueueCountsView> {
+    const qb = this.policy.visibilityFilter(user, this.dataSource.getRepository(Ticket).createQueryBuilder('t'));
+    qb.select([]);
+    for (const [name, query] of Object.entries(QUEUE_COUNTERS)) {
+      const filters = ticketFilters(query, user.id, `${name}_`);
+      qb.addSelect(`COUNT(*) FILTER (WHERE ${filters.map((f) => `(${f.sql})`).join(' AND ')})::int`, name);
+      for (const f of filters) qb.setParameters(f.params);
+    }
+    const counts = await qb.getRawOne<Record<QueueCounter, number>>();
+    return counts!;
   }
 
   async detail(user: User, id: string): Promise<TicketView> {

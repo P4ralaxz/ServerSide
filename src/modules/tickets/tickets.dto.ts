@@ -173,6 +173,25 @@ export class ListTicketsQuery {
   @IsBoolean()
   mine?: boolean;
 
+  // --- ตัวกรองคิวของ Staff (DESIGN 7.6) — ตัวเลขของแต่ละตัวอยู่ที่ GET /tickets/queue-counts ---
+
+  @ApiPropertyOptional({ enum: TICKET_PRIORITIES, description: 'นับเฉพาะใบที่ยังเปิดอยู่ (OPEN_STATUSES)' })
+  @IsOptional()
+  @IsIn(TICKET_PRIORITIES)
+  priority?: TicketPriority;
+
+  @ApiPropertyOptional({ description: 'true = ใบ resolved ที่มีคนแย้งว่ายังไม่หาย (job ไม่ปิดให้)' })
+  @IsOptional()
+  @Transform(toBool)
+  @IsBoolean()
+  disputed?: boolean;
+
+  @ApiPropertyOptional({ description: 'true = ใบที่เคยถูกส่งกลับ (reopen_count > 0) และยังเปิดอยู่' })
+  @IsOptional()
+  @Transform(toBool)
+  @IsBoolean()
+  reopened?: boolean;
+
   @ApiPropertyOptional({ default: TICKET_LIST_DEFAULT_LIMIT, maximum: TICKET_LIST_MAX_LIMIT })
   @IsOptional()
   @Type(() => Number)
@@ -362,6 +381,27 @@ export class HistoryEntryView {
 
   @ApiPropertyOptional({ type: Object, description: 'เฉพาะ kind=audit' })
   detail?: Record<string, unknown>;
+}
+
+// ตัวเลขบนชิปของคิว Staff — ทุกตัวเท่ากับจำนวนรายการของ GET /tickets ด้วย param ที่เขียนกำกับไว้
+export class QueueCountsView {
+  @ApiProperty({ description: 'ใบที่ยังเปิดอยู่ทั้งหมด (status = OPEN_STATUSES)' })
+  open_total: number;
+
+  @ApiProperty({ description: 'รอมอบหมาย (status=open)' })
+  unassigned: number;
+
+  @ApiProperty({ description: 'ด่วนมาก (priority=urgent)' })
+  urgent: number;
+
+  @ApiProperty({ description: 'มีคนแย้งว่ายังไม่หาย (disputed=true)' })
+  disputed: number;
+
+  @ApiProperty({ description: 'ถูกส่งกลับ (reopened=true)' })
+  reopened: number;
+
+  @ApiProperty({ description: 'ส่วนกลางรอ Staff ยืนยัน (scope=common_area&status=resolved)' })
+  common_pending_confirm: number;
 }
 
 export class SkippedItemView {
