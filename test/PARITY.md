@@ -539,7 +539,7 @@
 | 13 `wrong_code_counts_attempts_then_locks` | P* | รหัสผิดตอบ **401** `INVALID_CODE` (เดิม 400) · ล็อกแล้ว **429** `CODE_LOCKED` เหมือนเดิม |
 | 14–17 หมดอายุ / ใช้ซ้ำ / รหัสเก่า / ไม่เคยขอ | P* | ตอบ **401** (เดิม 400) — DESIGN ตาราง 7 ให้ verify-code ตอบ 400 เฉพาะ validate |
 | 18 `verify_bad_code_format_is_400` | P | + เช็คว่าไม่นับ `attempts` |
-| 19 `inactive_user_cannot_login` | **B → ทำเป็น 401 ไว้ก่อน** | เดิม 403 · ใช้ **401** `ACCOUNT_DISABLED` ให้ตรงกับ guard — **รอยืนยัน** ถ้าต้องการ 403 แก้บรรทัดเดียวใน `auth.service.ts` |
+| 19 `inactive_user_cannot_login` | **P*** (ยืนยัน 5 พ.ย. 2569) | เดิม 403 · ใช้ **401** `ACCOUNT_DISABLED` ให้ตรงกับ guard — บัญชีที่ถูกระงับได้ code เดียวกันทั้งตอน login และระหว่างใช้งาน |
 | 24 `me_rejects_expired_token` | P* | อายุ token 8 ชม. |
 | 26 `suspended_after_login_blocked_immediately` | P* | guard ตอบ 401 (เดิม 403) |
 | 31 `db_rejects_non_university_email` | P | อยู่ใน `test/contract/schema-vs-code.spec.ts` + ผ่าน HTTP ใน `error-handling.e2e-spec.ts` (23514 → 400) |
@@ -873,6 +873,18 @@ endpoint: `GET /reports/sla-summary` (จัดกลุ่ม `group_by` = buil
 | body ว่าง / ช่องว่างล้วน / เกิน 2000 / `is_internal` ไม่ใช่ boolean → 400 · ความเห็นที่ลบแบบ soft ไม่ถูกส่ง | `comments.e2e-spec.ts` (5 เคส) | |
 | `comment` เข้า `UiAction` — ปุ่มที่ส่งมากดได้จริง ปุ่มที่ไม่ส่งได้ 403/404 | `ticket-actions.e2e-spec.ts` (contract เดิม) · `ticket-policy.service.spec.ts` | DESIGN 7.1 · เคสที่ตรึงรายการ actions ไว้ (policy spec, `scan.e2e-spec.ts`) เพิ่ม `comment` ตามที่ DESIGN กำหนดให้เข้ามาสัปดาห์นี้ |
 | หน้าจอ: ช่างเขียนภายใน / ปกติ · นักศึกษาไม่เห็นข้อความภายในและไม่มีสวิตช์ ตอบกลับได้ · Staff เห็นครบ | `web/e2e/12-comments.spec.ts` (1 เคส + screenshot 2 ภาพ) | |
+
+### ข้อ 19 ปิดแล้ว (5 พ.ย. 2569)
+
+ยืนยัน **401** `ACCOUNT_DISABLED` ตามที่ทำไว้ (ข้อ 19 ในตารางหมวด auth) — ไม่ต้องแก้โค้ด
+
+| ป้าย | เคส |
+|---|---|
+| `P` / `P*` | **204** (+1 ข้อ 19 จาก B) |
+| `S` superseded | **31** |
+| `X` ตกไปถาวร | **17** |
+| `B` ยังรอคำตอบ | **0** |
+| รวม | **252** |
 
 ### หน้าพิมพ์ QR (5 พ.ย. 2569)
 
