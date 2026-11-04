@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createTransport, Transporter } from 'nodemailer';
 import { Env } from '../../config/env';
+import { smtpOptions } from './smtp-options';
 
 // e2e แทนคลาสนี้ด้วยตัวปลอมที่เก็บรหัสไว้ให้เทสอ่าน — เทสไม่ส่งเมลจริง
 @Injectable()
@@ -11,11 +12,16 @@ export class MailService {
 
   constructor(config: ConfigService<Env, true>) {
     this.from = config.get('MAIL_FROM', { infer: true });
-    this.transport = createTransport({
-      host: config.get('SMTP_HOST', { infer: true }),
-      port: config.get('MAILPIT_SMTP_PORT', { infer: true }),
-      secure: false,
-    });
+    this.transport = createTransport(
+      smtpOptions({
+        SMTP_HOST: config.get('SMTP_HOST', { infer: true }),
+        SMTP_PORT: config.get('SMTP_PORT', { infer: true }),
+        MAILPIT_SMTP_PORT: config.get('MAILPIT_SMTP_PORT', { infer: true }),
+        SMTP_SECURE: config.get('SMTP_SECURE', { infer: true }),
+        SMTP_USER: config.get('SMTP_USER', { infer: true }),
+        SMTP_PASS: config.get('SMTP_PASS', { infer: true }),
+      }),
+    );
   }
 
   async sendLoginCode(email: string, code: string): Promise<void> {
