@@ -137,3 +137,61 @@ a.btn.primary{color:var(--accent-ink)}
 .p-low{color:var(--st-muted);background:var(--st-muted-bg)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .ahead h1{font-size:17px;font-weight:600;padding-left:6px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;margin:0}
+
+/* เดสก์ท็อป (คิวงาน Staff) และรายงาน — คัดลอกจาก docs/ui/mockup.html */
+.desk{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
+.desk-bar{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--line)}
+.brand{font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px}
+.brand .ic{color:var(--accent)}
+.who{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.chip{border:1px solid var(--line);border-radius:12px;padding:8px 14px;display:flex;align-items:baseline;gap:8px;background:var(--surface);min-height:44px}
+.chip b{font-size:18px;font-weight:700}
+.chip span{font-size:13.5px;color:var(--muted)}
+.chip[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.chip.alert b{color:var(--danger)}
+.desk-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
+.desk-grid>*{min-width:0}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-weight:500;color:var(--muted);text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap;font-size:13px}
+td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--sunk)}
+tr.sel td{background:var(--accent-soft)!important}
+tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+td .sub{display:block;font-size:12.5px;color:var(--muted)}
+.tno{font-weight:600;white-space:nowrap}
+.side{border-left:1px solid var(--line);padding:18px;display:flex;flex-direction:column;gap:14px;background:var(--sunk)}
+.side .card{background:var(--surface)}
+.select{border:1px solid var(--line);background:var(--surface);border-radius:11px;padding:8px 10px;min-height:40px}
+
+/* รายงาน */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.kpi b{display:block;font-size:26px;font-weight:700;line-height:1.25}
+.kpi span{font-size:13.5px;color:var(--muted)}
+.rgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr));gap:16px}
+.rcard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.rcard h3{font-size:16px}
+.rcard .note{font-size:13px;color:var(--muted)}
+.bars{display:flex;flex-direction:column;gap:9px}
+.bar{display:grid;grid-template-columns:104px 1fr 66px;gap:10px;align-items:center;font-size:13.5px}
+.bar .track{height:12px;background:var(--sunk);border-radius:6px;overflow:hidden}
+.bar .fill{display:block;height:100%;border-radius:6px}
+.bar .v{text-align:right;color:var(--muted)}
+.stackbar{display:flex;height:20px;border-radius:7px;overflow:hidden}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13.5px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+@media (max-width:860px){.desk-grid{grid-template-columns:1fr}.side{border-left:0;border-top:1px solid var(--line)}}
+@media (max-width:420px){.bar{grid-template-columns:84px 1fr 54px}}
+/* โครงหน้าเดสก์ท็อป (แทน .wrap ของต้นแบบ) — กว้างไม่เกิน 1180 เว้นขอบ 16 ทุกจอ */
+.deskpage{max-width:1180px;margin:0 auto;padding:16px 16px 56px;display:flex;flex-direction:column;gap:16px}
+.desk-bar nav{display:flex;gap:4px;flex-wrap:wrap}
+.desk-bar nav a{padding:8px 12px;border-radius:9px;color:var(--muted);font-weight:500;text-decoration:none;min-height:40px;display:inline-flex;align-items:center}
+.desk-bar nav a[aria-current="page"]{background:var(--ink);color:var(--bg)}
+.chip{cursor:pointer;font:inherit;color:inherit}
+.side .actions{display:flex;flex-direction:column;gap:10px}
+.rtitle{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}

@@ -25,7 +25,8 @@ export class ApiError extends Error {
 // 404 = ไม่มีใบ หรือมองไม่เห็นใบนั้น — API ตอบเหมือนกันโดยตั้งใจ หน้าจอจึงห้ามแยกสองกรณีนี้ (UI-PLAN 6)
 export const isNotFound = (e: unknown): boolean => e instanceof ApiError && e.code === 'NOT_FOUND';
 
-type Query = Record<string, string | number | boolean | undefined | null>;
+// array = ส่ง param ซ้ำหลายค่า (?status=open&status=assigned) ตามที่ API รับ
+type Query = Record<string, string | number | boolean | readonly string[] | undefined | null>;
 
 const LOGIN = '/app/login';
 
@@ -41,7 +42,11 @@ const toLogin = (): void => {
 
 export async function api<T>(path: string, init: { method?: string; body?: unknown; query?: Query } = {}): Promise<T> {
   const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(init.query ?? {})) if (v !== undefined && v !== null) qs.set(k, String(v));
+  for (const [k, v] of Object.entries(init.query ?? {})) {
+    if (v === undefined || v === null) continue;
+    if (Array.isArray(v)) for (const item of v) qs.append(k, String(item));
+    else qs.set(k, String(v));
+  }
   const q = qs.toString();
   const url = q ? `${path}?${q}` : path;
 

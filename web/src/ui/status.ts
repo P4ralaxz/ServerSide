@@ -1,5 +1,5 @@
 import type { HistoryEntryView, TicketView, UiAction } from '../api/schema.gen';
-import { firstName, formatDuration, formatWhen } from './format';
+import { firstName, formatDuration, formatWhen, isToday } from './format';
 
 // ที่เดียวที่แปลงสถานะเป็นข้อความ สี และกลุ่มที่แสดง (UI-PLAN 2 ข้อ 1)
 // pages/ ห้ามเทียบ .status เอง (ESLint บังคับ) — ปุ่มมาจาก actions ส่วนข้อความ/สี/กลุ่มมาจากไฟล์นี้
@@ -28,13 +28,17 @@ const PRIORITY: Record<TicketPriority, { label: string; tone: string }> = {
 
 // ใบที่ยังไม่จบ — ใช้แค่จัดกลุ่มและนับตัวเลขบนแท็บ ไม่ได้ใช้ตัดสินว่ากดอะไรได้ (นั่นคือ actions)
 // ตรงกับ OPEN_STATUSES ของ backend (src/domain/status-rules.ts)
-const OPEN: readonly TicketStatus[] = ['open', 'assigned', 'in_progress', 'pending_parts', 'resolved'];
+export const OPEN_STATUSES: readonly TicketStatus[] = ['open', 'assigned', 'in_progress', 'pending_parts', 'resolved'];
+const OPEN = OPEN_STATUSES;
 
 export const statusLabel = (s: TicketStatus): string => STATUS[s].label;
 export const statusTone = (s: TicketStatus): string => STATUS[s].tone;
 export const priorityLabel = (p: TicketPriority): string => PRIORITY[p].label;
 export const priorityTone = (p: TicketPriority): string => PRIORITY[p].tone;
 export const isOpenTicket = (t: { status: TicketStatus }): boolean => OPEN.includes(t.status);
+// สีของสถานะเป็นค่า CSS (แท่งกราฟของรายงาน) — token ชุดเดียวกับ pill
+export const statusColor = (s: TicketStatus): string => `var(--${STATUS[s].tone.replace('s-', 'st-')})`;
+export const PRIORITIES: readonly TicketPriority[] = ['urgent', 'high', 'normal', 'low'];
 
 export const can = (t: { actions: readonly UiAction[] } | null | undefined, action: UiAction): boolean =>
   t?.actions.includes(action) ?? false;
@@ -46,6 +50,34 @@ export const studentGroup = (t: Pick<TicketView, 'status' | 'actions'>): Student
   can(t, 'confirm') ? 'waiting' : isOpenTicket(t) ? 'active' : 'done';
 
 const techName = (t: Pick<TicketView, 'assignee'>): string => firstName(t.assignee?.name);
+
+// ---- ช่าง (UI-PLAN 5) ----
+// กลุ่มของ "งานของฉัน" ตามลำดับบนลงล่าง: ถูกส่งกลับ → นัดวันนี้ → รออะไหล่ → อื่น ๆ → รอผู้พักยืนยัน
+// ใบที่ซ่อมเสร็จแล้วอยู่ล่างสุด เพราะช่างทำอะไรต่อไม่ได้ · "วันนี้" คิดตามเวลาไทย
+export type TechGroup = 'returned' | 'today' | 'parts' | 'other' | 'waiting';
+export const TECH_GROUPS: readonly TechGroup[] = ['returned', 'today', 'parts', 'other', 'waiting'];
+export const techGroup = (
+  t: Pick<TicketView, 'status' | 'reopen_count' | 'scheduled_at'>,
+  now = new Date(),
+): TechGroup => {
+  if (t.status === 'resolved') return 'waiting';
+  if (t.status === 'assigned' && t.reopen_count > 0) return 'returned';
+  if (t.status === 'pending_parts') return 'parts';
+  if (t.scheduled_at && isToday(t.scheduled_at, now)) return 'today';
+  return 'other';
+};
+
+// ถูกส่งกลับแล้วยังไม่เริ่มงานรอบใหม่ — ช่างและ Staff เห็นเหตุผลของผู้พักเป็น notice สีแดง
+export const isReturned = (t: Pick<TicketView, 'status' | 'reopen_count'>): boolean =>
+  t.status === 'assigned' && t.reopen_count > 0;
+// ซ่อมเสร็จแล้ว รอคนยืนยัน — ช่างปิดเองไม่ได้ (กฎข้อ 2)
+export const awaitsConfirmation = (t: Pick<TicketView, 'status'>): boolean => t.status === 'resolved';
+// ใบห้องพักที่รอผู้พักยืนยัน — Staff ยืนยันแทนไม่ได้ (บอกเหตุผลที่ไม่มีปุ่ม ตัวปุ่มยังมาจาก actions)
+export const awaitsResident = (t: Pick<TicketView, 'status' | 'room'>): boolean =>
+  t.status === 'resolved' && t.room !== null;
+// ใบส่วนกลางที่มีคนแย้งหลังช่างกดซ่อมเสร็จ — ระบบไม่ปิดให้ Staff ต้องตัดสิน (DESIGN 3.4)
+export const isDisputed = (t: Pick<TicketView, 'status' | 'disputed_at'>): boolean =>
+  t.status === 'resolved' && t.disputed_at !== null;
 
 // ประโยคสรุปใต้ชื่อใบ (summaryFor ของต้นแบบ ฝั่งนักศึกษา)
 export const studentSummary = (
@@ -115,12 +147,45 @@ const stepLabel = (e: HistoryEntryView): string => {
   }
 };
 
-// timeline ของนักศึกษา: เฉพาะการเปลี่ยนขั้นจริง + การนัดเวลา (ข้อมูลที่ผู้พักต้องรู้)
+type AuditAction = NonNullable<HistoryEntryView['action']>;
+
+const priorityName = (v: unknown): string =>
+  typeof v === 'string' && v in PRIORITY ? PRIORITY[v as TicketPriority].label : String(v ?? '');
+
+const auditLabel = (e: HistoryEntryView): { label: string; detail: string | null } => {
+  const d = e.detail ?? {};
+  switch (e.action) {
+    case 'schedule':
+      return {
+        label: d.from ? 'เลื่อนนัด' : 'นัดเวลาเข้าซ่อม',
+        detail: typeof d.to === 'string' ? formatWhen(d.to) : null,
+      };
+    case 'priority':
+      return { label: 'เปลี่ยนความด่วน', detail: `${priorityName(d.from)} → ${priorityName(d.to)}` };
+    case 'auto_escalate':
+      return { label: 'ยกเป็นด่วนมากอัตโนมัติ', detail: 'มีคนเจอปัญหาเดียวกันเกิน 10 คน' };
+    case 'same_issue':
+      return { label: 'มีคนเจอปัญหาเดียวกัน', detail: null };
+    case 'reassign':
+      return { label: 'เปลี่ยนช่าง', detail: null };
+    default:
+      return { label: '', detail: null };
+  }
+};
+
+// timeline จาก GET /tickets/:id/history — การเปลี่ยนขั้นจริงทุกแถว + audit ที่หน้านั้นสนใจ
 // ขั้นสุดท้ายของใบที่ยังไม่จบแสดง "ตอนนี้" แทนเวลาค้าง เพราะยังนับไม่จบ
-export const studentTimeline = (
+// นักศึกษา: เฉพาะการนัด · ช่าง: การนัด + ความด่วน · Staff: ทุกอย่างที่ขั้นไม่เปลี่ยน
+export const STUDENT_AUDITS: readonly AuditAction[] = ['schedule'];
+export const TECH_AUDITS: readonly AuditAction[] = ['schedule', 'priority', 'auto_escalate'];
+// 'assign' ไม่แสดง: เกิดคู่กับ status log open → assigned ทุกครั้ง แสดงแล้วจะเป็นแถว "มอบหมาย" ซ้ำสองแถว
+export const STAFF_AUDITS: readonly AuditAction[] = ['schedule', 'priority', 'auto_escalate', 'same_issue', 'reassign'];
+
+export const buildTimeline = (
   history: readonly HistoryEntryView[],
   t: Pick<TicketView, 'status'>,
   meId: string | undefined,
+  audits: readonly AuditAction[],
 ): TimelineItem[] => {
   const steps = history.filter((e) => e.kind === 'status');
   const by = (e: HistoryEntryView): string | null =>
@@ -128,13 +193,13 @@ export const studentTimeline = (
   const items: TimelineItem[] = [];
   history.forEach((e, i) => {
     if (e.kind === 'audit') {
-      if (e.action !== 'schedule') return;
-      const to = typeof e.detail?.to === 'string' ? e.detail.to : null;
+      if (!e.action || !audits.includes(e.action)) return;
+      const a = auditLabel(e);
       items.push({
         key: `a${i}`,
         dot: 'd-audit',
-        label: 'นัดเวลาเข้าซ่อม',
-        detail: to ? formatWhen(to) : null,
+        label: a.label,
+        detail: a.detail ?? by(e),
         at: formatWhen(e.at),
         duration: null,
         skip: false,
@@ -161,3 +226,13 @@ export const studentTimeline = (
   });
   return items;
 };
+
+export const studentTimeline = (
+  history: readonly HistoryEntryView[],
+  t: Pick<TicketView, 'status'>,
+  meId: string | undefined,
+) => buildTimeline(history, t, meId, STUDENT_AUDITS);
+
+// มีการยกเป็นด่วนมากอัตโนมัติ (คนเจอปัญหาเกิน 10) — แสดงต่อท้ายจำนวนคนเจอในแผงของ Staff
+export const wasEscalated = (history: readonly HistoryEntryView[] | undefined): boolean =>
+  (history ?? []).some((e) => e.kind === 'audit' && e.action === 'auto_escalate');

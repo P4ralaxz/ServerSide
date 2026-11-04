@@ -37,3 +37,34 @@ export const formatSeconds = (s: number): string => `${Math.floor(s / 60)}:${Str
 export const firstName = (name: string | null | undefined): string => (name ?? '').trim().split(/\s+/)[0] ?? '';
 
 export const isPast = (iso: string, now: Date = new Date()): boolean => new Date(iso).getTime() <= now.getTime();
+
+// วันเดียวกันตามเวลาไทย — กลุ่ม "นัดวันนี้" ของช่าง
+export const isToday = (iso: string, now: Date = new Date()): boolean =>
+  dayKey.format(new Date(iso)) === dayKey.format(now);
+
+// วันที่ไทยแบบเต็มบนหัวรายการงานของช่าง ("วันอังคารที่ 4 พฤศจิกายน 2569")
+const longDay = new Intl.DateTimeFormat('th-TH', {
+  timeZone: TZ,
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+export const formatLongDay = (now: Date = new Date()): string => longDay.format(now);
+
+// อายุใบในตารางคิว ("3 ชม.ก่อน")
+export const formatAge = (iso: string, now: Date = new Date()): string => {
+  const min = Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / 60_000));
+  if (min < 60) return `${Math.max(min, 1)} นาทีก่อน`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} ชม.ก่อน`;
+  return `${Math.floor(h / 24)} วันก่อน`;
+};
+
+// YYYY-MM-DD ตามเวลาไทย — ช่วงวันของรายงาน (API ตีความเป็นวันไทย)
+export const thaiDate = (d: Date): string => dayKey.format(d);
+
+// ช่อง datetime-local ไม่มี timezone: ตีความเป็นเวลาไทยเสมอ ให้ตรงกับที่แสดงทุกที่ในแอป ไม่ขึ้นกับเครื่องที่เปิด
+export const thaiLocalToIso = (local: string): string => new Date(`${local}:00+07:00`).toISOString();
+export const isoToThaiLocal = (iso: string): string =>
+  new Date(new Date(iso).getTime() + 7 * 3_600_000).toISOString().slice(0, 16);
