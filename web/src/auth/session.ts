@@ -37,6 +37,16 @@ export const clearSession = (): void => {
   }
 };
 
+// ออกจากระบบ = ล้าง token แล้วโหลดหน้า login ใหม่ทั้งหน้า
+// โหลดใหม่ทั้งหน้าเพื่อให้แคชของ react-query และ state ในหน่วยความจำหายไปพร้อมกัน
+// ถ้าแค่ navigate คนที่ login ต่อในแท็บเดิม (เครื่องส่วนกลางของหอ) จะเห็นรายการใบของคนก่อนแวบหนึ่ง
+// replace = กด back แล้วไม่กลับไปหน้าที่ต้อง login (ถึงกลับไปได้ RequireAuth ก็ส่งมาหน้า login อยู่ดี)
+// token ฝั่ง API ยังใช้ได้จนหมดอายุ (JWT_EXPIRES_IN) — ไม่เพิกถอนฝั่งเซิร์ฟเวอร์ แต่ token อยู่ใน sessionStorage ของแท็บนี้เท่านั้น
+export const logout = (): void => {
+  clearSession();
+  window.location.replace('/app/login');
+};
+
 // กันลิงก์ "next" พาออกนอกแอป (open redirect) — รับเฉพาะ path ใต้ /app/
 export const safeNext = (next: string | null): string =>
   next && next.startsWith('/app/') && !next.startsWith('//') ? next : '/app/';

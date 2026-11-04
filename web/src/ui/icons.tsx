@@ -23,6 +23,8 @@ const IC = {
   bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
   drop: '<path d="M12 2.7s-6 6.4-6 11.3a6 6 0 0 0 12 0c0-4.9-6-11.3-6-11.3z"/>',
   home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+  // ไม่มีในต้นแบบ — วาดด้วยเส้น 2px ชุดเดียวกัน
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>',
 } as const;
 
 export type IconName = keyof typeof IC;

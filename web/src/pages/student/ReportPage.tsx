@@ -6,6 +6,7 @@ import { ApiError } from '../../api/client';
 import { errorMessage } from '../../api/errors';
 import { createTickets, sameIssue } from '../../api/tickets';
 import type { AssetItem, CreateTicketsResponse, SkippedItem } from '../../api/types';
+import { LogoutButton } from '../../auth/LogoutButton';
 import { useMe } from '../../auth/RequireAuth';
 import { AppHeader } from '../../ui/AppHeader';
 import { Button } from '../../ui/Button';
@@ -138,7 +139,15 @@ export function ReportPage() {
 
   const title =
     place?.kind === 'common' ? 'แจ้งซ่อม ส่วนกลาง' : room.data ? `แจ้งซ่อม ห้อง ${room.data.room_no}` : 'แจ้งซ่อม';
-  const header = <AppHeader title={result ? 'แจ้งซ่อม' : title} back={fromAsset && !result ? '/report' : undefined} />;
+  // ปุ่มออกจากระบบอยู่เฉพาะหน้าแรกของแท็บ — หน้าที่มีปุ่มย้อนกลับคือขั้นย่อย ไม่ใช่ที่ที่คนมองหาปุ่มนี้
+  const sub = fromAsset && !result;
+  const header = (
+    <AppHeader
+      title={result ? 'แจ้งซ่อม' : title}
+      back={sub ? '/report' : undefined}
+      right={sub ? undefined : <LogoutButton />}
+    />
+  );
   const footer = <StudentTabs active="report" />;
 
   if (result) {

@@ -1,5 +1,6 @@
 import { errorMessage } from '../../api/errors';
 import type { Ticket } from '../../api/types';
+import { LogoutButton } from '../../auth/LogoutButton';
 import { AppHeader } from '../../ui/AppHeader';
 import { Button } from '../../ui/Button';
 import { categoryIcon } from '../../ui/category';
@@ -20,7 +21,7 @@ const GROUPS: { key: StudentGroup; label: string; empty: string }[] = [
 export function MyTicketsPage() {
   const q = useMyTickets();
   const footer = <StudentTabs active="tickets" />;
-  const header = <AppHeader title="ส่งซ่อมแล้ว" />;
+  const header = <AppHeader title="ส่งซ่อมแล้ว" right={<LogoutButton />} />;
 
   if (q.isPending) {
     return (

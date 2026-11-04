@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { errorMessage } from '../../api/errors';
 import { listTickets } from '../../api/tickets';
 import type { Ticket } from '../../api/types';
+import { LogoutButton } from '../../auth/LogoutButton';
 import { useMe } from '../../auth/RequireAuth';
 import { AppHeader } from '../../ui/AppHeader';
 import { Button } from '../../ui/Button';
@@ -30,7 +31,17 @@ export function JobsPage() {
     queryKey: [...JOBS_KEY, me?.id],
     queryFn: () => listTickets({ status: OPEN_STATUSES, limit: 100 }),
   });
-  const header = <AppHeader title="งานของฉัน" right={<Avatar />} />;
+  const header = (
+    <AppHeader
+      title="งานของฉัน"
+      right={
+        <>
+          <Avatar />
+          <LogoutButton />
+        </>
+      }
+    />
+  );
 
   if (q.isPending) {
     return (

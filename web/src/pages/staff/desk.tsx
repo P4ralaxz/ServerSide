@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { LogoutButton } from '../../auth/LogoutButton';
 import { useMe } from '../../auth/RequireAuth';
 import { Icon } from '../../ui/icons';
 
@@ -28,6 +29,7 @@ export function DeskBar({ active }: { active: 'queue' | 'reports' }) {
           {name.slice(0, 1)}
         </span>
         {name} ({ROLE_LABEL[me?.role ?? ''] ?? me?.role})
+        <LogoutButton />
       </span>
     </div>
   );
