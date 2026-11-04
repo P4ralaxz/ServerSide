@@ -27,7 +27,8 @@
     "web:e2e": "npm --prefix web run e2e",
     "web:types": "ts-node test/contract/write-web-types.ts",
     "mail:test": "ts-node src/cli/mail-test.ts",
-    "user:make-admin": "ts-node src/cli/make-admin.ts"
+    "user:make-admin": "ts-node src/cli/make-admin.ts",
+    "user:demo": "ts-node src/cli/demo-accounts.ts"
   },
   "jest": {
     "preset": "ts-jest",

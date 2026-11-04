@@ -841,6 +841,8 @@ endpoint: `GET /reports/sla-summary` (จัดกลุ่ม `group_by` = buil
 | เส้นทางหน้าช่าง / คิว Staff / รายงาน | `web/e2e/06–09` (Playwright 10 เคส) | ไม่มีคู่ในของเดิม — ของเดิมไม่มีหน้าช่างและ Staff |
 | ปุ่มออกจากระบบ (หน้าเว็บอย่างเดียว) | `web/e2e/10-logout.spec.ts` (Playwright 2 เคส) | UI-PLAN 1 · ไม่มีคู่ในของเดิม |
 | หน้าผู้ใช้ของ Admin | `web/e2e/11-users.spec.ts` (Playwright 4 เคส + screenshot 3 ภาพ) | UI-PLAN 5 · ใช้ API เดิม กฎฝั่ง API มีเทสใน `users.e2e-spec.ts` อยู่แล้ว |
+| `npm run user:demo` — บัญชีทดลองทุกบทบาทด้วยอีเมล +แท็ก ของเจ้าของเครื่อง · ไม่ยัดเกินความจุห้อง · รันซ้ำไม่เขียนทับ | `demo-accounts.e2e-spec.ts` (6 เคส) | สคริปต์บนเครื่อง ไม่ใช่ endpoint · ไม่มีคู่ในของเดิม |
+| Playwright ใช้ DB แยก `dorm_ui` | — (ตรวจด้วยมือ: จำนวนผู้ใช้ / ใบใน DB จริงเท่าเดิมหลังรัน `web:e2e`) | UI-PLAN 9 |
 
 ป้ายไม่เปลี่ยน — UI-2 ไม่มีเคสของเดิมให้แปลเพิ่ม (ยัง 241 จาก 252)
 
