@@ -152,7 +152,8 @@ a.btn.primary{color:var(--accent-ink)}
 .chip.alert b{color:var(--danger)}
 .desk-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
 .desk-grid>*{min-width:0}
-.tablewrap{overflow-x:auto}
+/* position:relative → .sr-only (absolute) ในตารางอยู่ในกล่องเลื่อนนี้ ไม่ดันหน้าให้ล้นจอแนวนอน */
+.tablewrap{overflow-x:auto;position:relative}
 table{border-collapse:collapse;width:100%;font-size:14px}
 th{font-weight:500;color:var(--muted);text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap;font-size:13px}
 td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
