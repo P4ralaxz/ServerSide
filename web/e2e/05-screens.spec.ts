@@ -1,48 +1,16 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import type { AssetListItemView, TicketView } from '../src/api/schema.gen';
-import {
-  apiGet,
-  awaitingConfirm,
-  expectNoHorizontalOverflow,
-  sessionFor,
-  signIn,
-  STAFF,
-  type Session,
-} from './support';
+import { newPage, shoot } from './screens';
+import { apiGet, awaitingConfirm, sessionFor, STAFF } from './support';
 
 // screenshot ทุกหน้าของนักศึกษาที่ 360px และ 1280px ทั้ง light/dark (UI-PLAN 9) — ไว้เทียบกับ docs/ui/mockup.html
-// ทุกภาพตรวจด้วยว่าไม่ล้นจอแนวนอน · ไฟล์อยู่ที่ web/e2e/__screenshots__/<หน้า>-<กว้าง>-<โหมด>.png
-const DIR = 'e2e/__screenshots__';
+// แต่ละขนาด login ด้วยอีเมลคนละอีเมล — API ให้ขอรหัสได้ 1 ครั้ง/60 วินาที/อีเมล
 const VARIANTS = [
   { width: 360, height: 780, scheme: 'light' as const, email: 'demo.s0011@kmitl.ac.th' },
   { width: 360, height: 780, scheme: 'dark' as const, email: 'demo.s0012@kmitl.ac.th' },
   { width: 1280, height: 860, scheme: 'light' as const, email: 'demo.s0013@kmitl.ac.th' },
   { width: 1280, height: 860, scheme: 'dark' as const, email: 'demo.s0014@kmitl.ac.th' },
 ];
-
-const shoot = async (page: Page, name: string, v: (typeof VARIANTS)[number]) => {
-  await page.evaluate(() => document.fonts.ready);
-  await expectNoHorizontalOverflow(page);
-  // ขยายจอให้สูงเท่าเนื้อหาก่อนถ่าย — fullPage ของ Playwright วาดแถบล่าง (sticky) ค้างกลางภาพ ไม่ใช่ที่ขอบล่างจริง
-  const height = await page.evaluate(() => document.documentElement.scrollHeight);
-  await page.setViewportSize({ width: v.width, height: Math.max(v.height, height) });
-  await page.screenshot({ path: `${DIR}/${name}-${v.width}-${v.scheme}.png` });
-  await page.setViewportSize({ width: v.width, height: v.height });
-};
-
-const newPage = async (browser: Browser, baseURL: string, v: (typeof VARIANTS)[number], s?: Session) => {
-  const ctx = await browser.newContext({
-    baseURL,
-    viewport: { width: v.width, height: v.height },
-    colorScheme: v.scheme,
-    reducedMotion: 'reduce',
-    locale: 'th-TH',
-    timezoneId: 'Asia/Bangkok',
-  });
-  const page = await ctx.newPage();
-  if (s) await signIn(page, s);
-  return page;
-};
 
 for (const v of VARIANTS) {
   test(`screenshot หน้านักศึกษา ${v.width}px ${v.scheme}`, async ({ browser, request, baseURL }) => {

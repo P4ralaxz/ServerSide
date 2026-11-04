@@ -150,3 +150,47 @@ export const expectNoHorizontalOverflow = async (page: Page): Promise<void> => {
   }));
   expect(scroll, 'หน้าล้นจอแนวนอน').toBeLessThanOrEqual(inner);
 };
+
+// ---- UI-2 ----
+
+const OPEN_QUERY = 'status=open&status=assigned&status=in_progress&status=pending_parts&status=resolved&limit=100';
+
+// ใบที่ยังเปิดอยู่ทั้งหมด (มุมมองของ Staff) เรียงตามเลขใบ — ใช้หาใบตัวอย่างและเป็นคำตอบอ้างอิงของเทส
+export const allOpenTickets = async (request: APIRequestContext): Promise<TicketView[]> => {
+  const staff = await sessionFor(request, STAFF);
+  const rows = await apiGet<TicketView[]>(request, staff, `/tickets?${OPEN_QUERY}`);
+  return rows.sort((a, b) => a.ticket_no.localeCompare(b.ticket_no));
+};
+
+export const technicianOf = async (request: APIRequestContext, ticket: TicketView): Promise<UserView> => {
+  const staff = await sessionFor(request, STAFF);
+  const techs = await apiGet<UserView[]>(request, staff, '/users?role=technician');
+  const tech = techs.find((u) => u.id === ticket.assigned_to);
+  expect(tech, `ใบ ${ticket.ticket_no} ต้องมีช่าง`).toBeDefined();
+  return tech!;
+};
+
+export const studentOfRoom = async (request: APIRequestContext, roomId: string): Promise<UserView> => {
+  const staff = await sessionFor(request, STAFF);
+  const [student] = await studentsOf(request, staff, roomId);
+  return student;
+};
+
+// ใบที่เปิดได้ด้วย id ที่จำไว้ตั้งแต่ครั้งแรกของรอบ — เทสหลัง ๆ เปลี่ยนสถานะใบไปแล้ว แต่ต้องได้ใบเดิม
+const PICKS_FILE = resolve('e2e/.tmp/picks.json');
+export const pickOnce = async (
+  request: APIRequestContext,
+  name: string,
+  choose: (open: TicketView[]) => TicketView | undefined,
+): Promise<TicketView> => {
+  const picks = existsSync(PICKS_FILE) ? (JSON.parse(readFileSync(PICKS_FILE, 'utf8')) as Record<string, string>) : {};
+  const staff = await sessionFor(request, STAFF);
+  if (!picks[name]) {
+    const t = choose(await allOpenTickets(request));
+    expect(t, `seed ต้องมีใบสำหรับ ${name}`).toBeDefined();
+    picks[name] = t!.id;
+    mkdirSync(dirname(PICKS_FILE), { recursive: true });
+    writeFileSync(PICKS_FILE, JSON.stringify(picks));
+  }
+  return apiGet<TicketView>(request, staff, `/tickets/${picks[name]}`);
+};
