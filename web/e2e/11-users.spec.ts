@@ -43,11 +43,10 @@ test('admin: แถวของตัวเองแก้ไม่ได้ · 
   expect((await userByEmail(page, s13)).room_id).toBe(free);
 
   // นักศึกษาคนเดิม (มีห้องแล้ว) → ช่าง: ต้องถอดห้องในคำขอเดียวกัน ไม่งั้น API ไม่รับ
-  page.once('dialog', (d) => {
-    expect(d.message()).toContain('ถอดออกจากห้อง');
-    void d.accept();
-  });
   await rowOf(page, s13).getByLabel(`บทบาทของ ${s13}`).selectOption('technician');
+  const dialog = page.getByRole('alertdialog', { name: 'เปลี่ยนบทบาท' });
+  await expect(dialog).toContainText('ถอดออกจากห้องพัก');
+  await dialog.getByRole('button', { name: 'เปลี่ยนบทบาท' }).click();
   await expect(page.getByRole('status')).toHaveText(/^เปลี่ยน .+ เป็นช่างแล้ว$/);
   await expect(rowOf(page, s13).getByLabel(`ห้องพักของ ${s13}`)).toHaveCount(0);
   const after = await userByEmail(page, s13);
@@ -61,10 +60,10 @@ test('admin: ระงับช่างที่ยังมีงานค้�
 
   await signIn(page, await sessionFor(request, ADMIN));
   await page.goto('/app/users');
-  page.once('dialog', (d) => void d.accept());
   await rowOf(page, tech.email)
     .getByRole('button', { name: `ระงับ ${tech.email}` })
     .click();
+  await page.getByRole('alertdialog', { name: 'ระงับบัญชี' }).getByRole('button', { name: 'ระงับบัญชี' }).click();
 
   await expect(page.getByRole('alert')).toContainText('ยังมีงานค้าง');
   await expect(page.getByRole('alert')).toContainText(ticket.ticket_no);

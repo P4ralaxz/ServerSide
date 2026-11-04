@@ -8,6 +8,7 @@ import type { Room, User } from '../../api/types';
 import { createUser, listUsers, updateUser } from '../../api/users';
 import { useMe } from '../../auth/RequireAuth';
 import { Button } from '../../ui/Button';
+import { useConfirm } from '../../ui/Confirm';
 import { Loading } from '../../ui/Empty';
 import { Field, invalidProps } from '../../ui/Field';
 import { Notice } from '../../ui/Notice';
@@ -27,6 +28,7 @@ export function UsersPage() {
   const me = useMe();
   const qc = useQueryClient();
   const toast = useToast();
+  const confirm = useConfirm();
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<Role | ''>('');
   const [rowError, setRowError] = useState<string | null>(null);
@@ -63,12 +65,21 @@ export function UsersPage() {
 
   const roomName = (id: string): string => rooms.data?.find((r) => r.id === id)?.room_no ?? '';
 
-  const changeRole = (u: User, role: Role) => {
+  const changeRole = async (u: User, role: Role) => {
     // นักศึกษาที่ผูกห้องอยู่แล้วไปเป็นบทบาทอื่น → ถอดออกจากห้องในคำขอเดียวกัน
     // ไม่งั้นช่างโดน TECHNICIAN_CANNOT_HAVE_ROOM และ Staff จะมีห้องค้างที่หน้านี้ไม่แสดง
     const leaveRoom = u.room_id !== null && !livesInRoom(role);
-    const ask = `เปลี่ยน ${nameOf(u)} เป็น${roleLabel(role)}?${leaveRoom ? ' จะถูกถอดออกจากห้องพักด้วย' : ''}`;
-    if (!window.confirm(ask)) return;
+    const ok = await confirm({
+      title: 'เปลี่ยนบทบาท',
+      body: (
+        <>
+          เปลี่ยนบทบาทของ <b>{nameOf(u)}</b> จาก{roleLabel(u.role)}เป็น<b>{roleLabel(role)}</b>
+          {leaveRoom && <> และถอดออกจากห้องพัก ห้อง {roomName(u.room_id!)}</>} มีผลทันทีที่ผู้ใช้ทำรายการครั้งถัดไป
+        </>
+      ),
+      confirmLabel: 'เปลี่ยนบทบาท',
+    });
+    if (!ok) return;
     update.mutate({
       user: u,
       body: leaveRoom ? { role, room_id: null } : { role },
@@ -83,8 +94,20 @@ export function UsersPage() {
       done: roomId ? `ผูก ${nameOf(u)} กับห้อง ${roomName(roomId)} แล้ว` : `ถอด ${nameOf(u)} ออกจากห้องแล้ว`,
     });
 
-  const toggleActive = (u: User) => {
-    if (u.is_active && !window.confirm(`ระงับบัญชี ${nameOf(u)}? จะใช้งานไม่ได้ทันที`)) return;
+  const toggleActive = async (u: User) => {
+    const ok =
+      !u.is_active ||
+      (await confirm({
+        title: 'ระงับบัญชี',
+        body: (
+          <>
+            <b>{nameOf(u)}</b> จะใช้งานระบบไม่ได้ทันที จนกว่าจะเปิดใช้บัญชีอีกครั้ง
+          </>
+        ),
+        confirmLabel: 'ระงับบัญชี',
+        danger: true,
+      }));
+    if (!ok) return;
     update.mutate({
       user: u,
       body: { is_active: !u.is_active },

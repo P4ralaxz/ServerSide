@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
-type Variant = 'primary' | 'quiet' | 'danger' | 'default';
+type Variant = 'primary' | 'quiet' | 'danger' | 'dangerfill' | 'default';
 
 interface Props {
   children: ReactNode;
