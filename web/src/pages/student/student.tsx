@@ -47,3 +47,7 @@ export const whereOf = (x: {
   location_note?: string | null;
 }): string =>
   x.room ? `ห้อง ${x.room.room_no}` : [x.building.name, x.location_note ?? 'ส่วนกลาง'].filter(Boolean).join(' · ');
+
+// ที่ตั้งสำหรับช่างและ Staff — เห็นหลายอาคาร เลขห้องซ้ำกันข้ามอาคารได้ จึงต้องบอกอาคารด้วย
+export const placeOf = (x: { room: { room_no: string } | null; building: { name: string } }): string =>
+  x.room ? `${x.building.name} ห้อง ${x.room.room_no}` : `${x.building.name} · ส่วนกลาง`;
