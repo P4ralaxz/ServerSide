@@ -1,18 +1,35 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { RequireAuth, useMe } from './auth/RequireAuth';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage, RolePendingPage } from './pages/NotFoundPage';
+import { ReportsPage } from './pages/reports/ReportsPage';
+import { QueuePage } from './pages/staff/QueuePage';
 import { MyTicketsPage } from './pages/student/MyTicketsPage';
 import { ReportPage } from './pages/student/ReportPage';
 import { ScanPage } from './pages/student/ScanPage';
 import { TicketDetailPage } from './pages/student/TicketDetailPage';
+import { JobDetailPage } from './pages/tech/JobDetailPage';
+import { JobsPage } from './pages/tech/JobsPage';
 
-// หน้าแรกหลัง login ตาม role — ที่เดียวที่หน้าเว็บอ่าน role ได้ (UI-PLAN 2 ข้อ 1)
-// หน้าช่าง / Staff มาใน UI-2 ตอนนี้บอกผู้ใช้ตรง ๆ แทนการพาไปหน้าที่ยังไม่มี
+// role ใช้ได้ที่ไฟล์นี้ที่เดียว และใช้แค่เลือกว่าจะเปิดหน้าไหน (UI-PLAN 2 ข้อ 1) — สิทธิ์จริงตรวจที่ API ทุกครั้ง
+// staff / admin ใช้หน้าเดียวกัน: admin ได้สิทธิ์ของ staff ทั้งหมดที่ API (DESIGN 4.2)
+type Role = 'student' | 'technician' | 'staff' | 'admin';
+const HOME: Record<Role, string> = { student: '/report', technician: '/jobs', staff: '/queue', admin: '/queue' };
+
 function Home() {
   const me = useMe();
-  if (me?.role === 'student') return <Navigate to="/report" replace />;
-  return <RolePendingPage />;
+  const home = me ? HOME[me.role] : undefined;
+  return home ? <Navigate to={home} replace /> : <RolePendingPage />;
+}
+
+// /app/tickets/:id เป็นลิงก์ในอีเมล (DESIGN 6.10) — staff เปิดแล้วไปที่คิวพร้อมเลือกใบนั้น ช่างไปหน้างาน
+// นักศึกษาเห็นหน้ารายละเอียดใบของตัวเอง
+function TicketRoute() {
+  const me = useMe();
+  const { id = '' } = useParams();
+  if (me?.role === 'staff' || me?.role === 'admin') return <Navigate to={`/queue?ticket=${id}`} replace />;
+  if (me?.role === 'technician') return <Navigate to={`/jobs/${id}`} replace />;
+  return <TicketDetailPage />;
 }
 
 export function AppRoutes() {
@@ -24,7 +41,11 @@ export function AppRoutes() {
       <Route path="/scan/:qrToken" element={guard(<ScanPage />)} />
       <Route path="/report" element={guard(<ReportPage />)} />
       <Route path="/tickets" element={guard(<MyTicketsPage />)} />
-      <Route path="/tickets/:id" element={guard(<TicketDetailPage />)} />
+      <Route path="/tickets/:id" element={guard(<TicketRoute />)} />
+      <Route path="/jobs" element={guard(<JobsPage />)} />
+      <Route path="/jobs/:id" element={guard(<JobDetailPage />)} />
+      <Route path="/queue" element={guard(<QueuePage />)} />
+      <Route path="/reports" element={guard(<ReportsPage />)} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
