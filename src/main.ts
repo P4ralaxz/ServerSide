@@ -9,7 +9,9 @@ import { buildOpenApi } from './swagger';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
-  configureApp(app);
+  configureApp(app, {
+    trustProxy: app.get<ConfigService<Env, true>>(ConfigService).get('TRUST_PROXY', { infer: true }),
+  });
 
   SwaggerModule.setup('docs', app, buildOpenApi(app));
 

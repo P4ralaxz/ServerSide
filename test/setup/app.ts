@@ -81,7 +81,10 @@ export interface TestApp {
 
 // แอปตัวเดียวกับของจริง (pipe / filter / guard ชุดเดียวกันผ่าน AppModule + configureApp) ต่อกับ Postgres ของ Testcontainers
 // extraControllers ใช้เฉพาะเทสที่ต้องมี endpoint จำลอง
-export const createTestApp = async (extraControllers: Type[] = []): Promise<TestApp> => {
+export const createTestApp = async (
+  extraControllers: Type[] = [],
+  opts: { trustProxy?: boolean } = {},
+): Promise<TestApp> => {
   const mail = new FakeMailService();
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
@@ -95,7 +98,7 @@ export const createTestApp = async (extraControllers: Type[] = []): Promise<Test
     .useValue(new ExpressLoader())
     .compile();
   const app = moduleRef.createNestApplication();
-  configureApp(app);
+  configureApp(app, opts);
   // เปิดพอร์ตสุ่มครั้งเดียว: ถ้าปล่อยให้ supertest เปิดเองทุก request เทสที่ยิงพร้อมกันจะผูก listener ซ้อนกันบน server ตัวเดียว
   await app.listen(0);
   return { app, mail };

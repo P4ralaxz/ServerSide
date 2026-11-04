@@ -32,6 +32,10 @@ const schema = z
 
     // ไฟล์ build ของหน้าเว็บ (UI-PLAN 7) — ไม่ระบุ = web/dist ของ repo · e2e ชี้ไปโฟลเดอร์ทดสอบได้โดยไม่ต้อง build ก่อน
     WEB_DIST_DIR: z.string().min(1).optional(),
+
+    // เปิดเมื่อรันหลัง tunnel / reverse proxy บนเครื่องเดียวกัน (cloudflared, ngrok)
+    // ไม่เปิด = ทุก request ดูเหมือนมาจาก 127.0.0.1 แล้วโควตาต่อ IP (ขอรหัส / ยืนยันรหัส / throttler) ถูกใช้ร่วมกันทั้งระบบ
+    TRUST_PROXY: bool.default(false),
   })
   // ตั้งแค่ครึ่งเดียวคือพิมพ์ผิด — ถ้าปล่อยผ่าน แอปจะส่งแบบไม่มี auth แล้วเซิร์ฟเวอร์จริงปฏิเสธทุกฉบับโดยไม่มีใครรู้
   .refine((e) => (e.SMTP_USER === undefined) === (e.SMTP_PASS === undefined), {
