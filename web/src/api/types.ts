@@ -2,6 +2,7 @@
 export type {
   AssetListItemView as AssetItem,
   AssetView as Asset,
+  CommentView as Comment,
   CreateTicketsResponse,
   HistoryEntryView as HistoryEntry,
   QueueCountsView as QueueCounts,

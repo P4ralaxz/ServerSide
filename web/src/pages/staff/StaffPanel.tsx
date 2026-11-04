@@ -22,6 +22,7 @@ import { firstName, formatWhen } from '../../ui/format';
 import { Notice } from '../../ui/Notice';
 import { Pill } from '../../ui/Pill';
 import { Priority } from '../../ui/Priority';
+import { CommentsCard } from '../CommentsCard';
 import {
   awaitsResident,
   buildTimeline,
@@ -304,6 +305,8 @@ export function StaffPanel({ id }: { id: string }) {
           <Timeline items={buildTimeline(history.data, t, me?.id, STAFF_AUDITS)} />
         )}
       </Card>
+
+      <CommentsCard ticket={t} />
     </>
   );
 }

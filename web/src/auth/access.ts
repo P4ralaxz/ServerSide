@@ -8,4 +8,7 @@ type Role = User['role'];
 export const HOME: Record<Role, string> = { student: '/report', technician: '/jobs', staff: '/queue', admin: '/queue' };
 
 // หน้าจัดการผู้ใช้ของ admin — staff แก้ได้แค่ห้องพัก (DESIGN 7) ถ้าเปิดหน้านี้ให้ staff จะเห็นปุ่มเปลี่ยนบทบาทที่ API ตอบ 403
+// สวิตช์ "ความเห็นภายใน" — นักศึกษาไม่เห็นและเขียนไม่ได้ (DESIGN 4.3) ถ้าโชว์สวิตช์ให้นักศึกษา กดแล้ว API ตอบ 403
+export const canWriteInternal = (role: Role | undefined): boolean => role !== undefined && role !== 'student';
+
 export const canManageUsers = (role: Role | undefined): boolean => role === 'admin';

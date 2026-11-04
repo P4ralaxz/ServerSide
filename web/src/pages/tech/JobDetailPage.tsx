@@ -19,6 +19,7 @@ import { Priority } from '../../ui/Priority';
 import { Shell } from '../../ui/Shell';
 import { awaitsConfirmation, buildTimeline, can, isReturned, TECH_AUDITS } from '../../ui/status';
 import { Timeline } from '../../ui/Timeline';
+import { CommentsCard } from '../CommentsCard';
 import { useToast } from '../../ui/Toast';
 import { placeOf } from '../student/student';
 import { JOBS_KEY } from './JobsPage';
@@ -208,6 +209,8 @@ export function JobDetailPage() {
           <Timeline items={buildTimeline(history.data, t, me?.id, TECH_AUDITS)} />
         )}
       </Card>
+
+      <CommentsCard ticket={t} />
 
       {sheet === 'resolve' && (
         <BottomSheet label="แจ้งว่าซ่อมเสร็จ" onClose={close}>

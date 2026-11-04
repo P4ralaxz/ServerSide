@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { CreateTicketsResponse, HistoryEntry, QueueCounts, Ticket } from './types';
+import type { Comment, CreateTicketsResponse, HistoryEntry, QueueCounts, Ticket } from './types';
 
 export interface NewItem {
   asset_id: string;
@@ -21,6 +21,10 @@ export type TicketQuery = {
 
 export const getTicket = (id: string) => api<Ticket>(`/tickets/${id}`);
 export const getHistory = (id: string) => api<HistoryEntry[]>(`/tickets/${id}/history`);
+// ความเห็นในใบ — ทุกบทบาท · นักศึกษาไม่ได้รับความเห็นภายใน และส่ง is_internal ไม่ได้ (API ตอบ 403)
+export const listComments = (id: string) => api<Comment[]>(`/tickets/${id}/comments`);
+export const addComment = (id: string, body: string, isInternal: boolean) =>
+  api<Comment>(`/tickets/${id}/comments`, { method: 'POST', body: { body, is_internal: isInternal } });
 export const listTickets = (query: TicketQuery) => api<Ticket[]>('/tickets', { query });
 export const queueCounts = () => api<QueueCounts>('/tickets/queue-counts');
 

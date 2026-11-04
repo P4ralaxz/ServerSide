@@ -19,6 +19,7 @@ import { Shell } from '../../ui/Shell';
 import { can, pendingParts, studentSummary, studentTimeline } from '../../ui/status';
 import { Timeline } from '../../ui/Timeline';
 import { useToast } from '../../ui/Toast';
+import { CommentsCard } from '../CommentsCard';
 import { MY_TICKETS_KEY, StudentTabs, whereOf } from './student';
 
 type Sheet = 'confirm' | 'reopen' | 'cancel' | null;
@@ -165,6 +166,8 @@ export function TicketDetailPage() {
           <Timeline items={studentTimeline(history.data, t, me?.id)} />
         )}
       </Card>
+
+      <CommentsCard ticket={t} />
 
       {sheet === 'confirm' && (
         <BottomSheet label="ยืนยันว่าหายแล้ว" onClose={close}>
