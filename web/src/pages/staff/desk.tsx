@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { canManageUsers } from '../../auth/access';
+import { canManageUsers, canPrintQr } from '../../auth/access';
 import { LogoutButton } from '../../auth/LogoutButton';
 import { useMe } from '../../auth/RequireAuth';
 import { Icon } from '../../ui/icons';
 import { roleLabel } from '../../ui/role';
 
-// แถบบนของหน้าเดสก์ท็อป (desk-bar ของต้นแบบ) + เมนูคิวงาน / รายงาน / ผู้ใช้ (admin)
-export function DeskBar({ active }: { active: 'queue' | 'reports' | 'users' }) {
+// แถบบนของหน้าเดสก์ท็อป (desk-bar ของต้นแบบ) + เมนูคิวงาน / รายงาน / พิมพ์ QR / ผู้ใช้ (admin)
+export function DeskBar({ active }: { active: 'queue' | 'reports' | 'qr' | 'users' }) {
   const me = useMe();
   const name = me?.full_name ?? me?.email ?? '';
   return (
@@ -23,6 +23,11 @@ export function DeskBar({ active }: { active: 'queue' | 'reports' | 'users' }) {
         <Link to="/reports" aria-current={active === 'reports' ? 'page' : undefined}>
           รายงาน
         </Link>
+        {canPrintQr(me?.role) && (
+          <Link to="/qr" aria-current={active === 'qr' ? 'page' : undefined}>
+            พิมพ์ QR
+          </Link>
+        )}
         {canManageUsers(me?.role) && (
           <Link to="/users" aria-current={active === 'users' ? 'page' : undefined}>
             ผู้ใช้

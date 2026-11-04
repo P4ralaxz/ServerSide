@@ -211,3 +211,17 @@ td .sub{display:block;font-size:12.5px;color:var(--muted)}
 .chip{cursor:pointer;font:inherit;color:inherit}
 .side .actions{display:flex;flex-direction:column;gap:10px}
 .rtitle{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+
+/* แผ่นสติกเกอร์ QR (หน้าพิมพ์ QR ของ Staff) — จอ: กริดยืดตามความกว้าง · กระดาษ: 3 ช่องต่อแถว A4 ไม่ตัดกลางสติกเกอร์ */
+.stickers{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+.sticker{background:#fff;color:#111;border:1px dashed #9a9a9a;border-radius:12px;padding:12px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px;break-inside:avoid}
+.sticker img,.sticker .qr-missing{width:150px;height:150px;display:grid;place-items:center}
+.sticker .muted{color:#555}
+@media print{
+  @page{size:A4;margin:10mm}
+  body{background:#fff}
+  .desk-bar,.noprint,.toast{display:none!important}
+  .deskpage{max-width:none;padding:0}
+  .stickers{grid-template-columns:repeat(3,1fr);gap:6mm}
+  .sticker{border-radius:0}
+}

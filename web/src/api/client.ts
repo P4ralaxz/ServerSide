@@ -40,7 +40,20 @@ const toLogin = (): void => {
   }
 };
 
-export async function api<T>(path: string, init: { method?: string; body?: unknown; query?: Query } = {}): Promise<T> {
+type Init = { method?: string; body?: unknown; query?: Query };
+
+export async function api<T>(path: string, init: Init = {}): Promise<T> {
+  const res = await send(path, init, 'application/json');
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
+// ไฟล์ที่ต้องแนบ token (รูป QR) — ใส่ <img src> ตรง ๆ ไม่ได้เพราะเบราว์เซอร์ไม่ส่ง header Authorization ให้
+export async function apiBlob(path: string): Promise<Blob> {
+  return (await send(path, {}, '*/*')).blob();
+}
+
+async function send(path: string, init: Init, accept: string): Promise<Response> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(init.query ?? {})) {
     if (v === undefined || v === null) continue;
@@ -51,7 +64,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
   const url = q ? `${path}?${q}` : path;
 
   const token = getToken();
-  const headers: Record<string, string> = { Accept: 'application/json' };
+  const headers: Record<string, string> = { Accept: accept };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (init.body !== undefined) headers['Content-Type'] = 'application/json';
 
@@ -61,10 +74,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
   });
 
-  if (res.ok) {
-    if (res.status === 204) return undefined as T;
-    return (await res.json()) as T;
-  }
+  if (res.ok) return res;
 
   const body = (await res.json().catch(() => ({}))) as { code?: unknown; message?: unknown; details?: unknown };
   if (res.status === 401 && token) toLogin();

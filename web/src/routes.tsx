@@ -1,10 +1,11 @@
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
-import { canManageUsers, HOME } from './auth/access';
+import { canManageUsers, canPrintQr, HOME } from './auth/access';
 import { RequireAuth, useMe } from './auth/RequireAuth';
 import { UsersPage } from './pages/admin/UsersPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage, RolePendingPage } from './pages/NotFoundPage';
 import { ReportsPage } from './pages/reports/ReportsPage';
+import { QrPage } from './pages/staff/QrPage';
 import { QueuePage } from './pages/staff/QueuePage';
 import { MyTicketsPage } from './pages/student/MyTicketsPage';
 import { ReportPage } from './pages/student/ReportPage';
@@ -36,6 +37,12 @@ function UsersRoute() {
   return canManageUsers(me?.role) ? <UsersPage /> : <Navigate to="/" replace />;
 }
 
+// หน้าพิมพ์ QR ของ staff / admin — คนอื่นเปิดตรง ๆ กลับหน้าแรกของตัวเอง (API รูป QR ตอบ 403 อยู่แล้ว)
+function QrRoute() {
+  const me = useMe();
+  return canPrintQr(me?.role) ? <QrPage /> : <Navigate to="/" replace />;
+}
+
 export function AppRoutes() {
   const guard = (el: JSX.Element) => <RequireAuth>{el}</RequireAuth>;
   return (
@@ -50,6 +57,7 @@ export function AppRoutes() {
       <Route path="/jobs/:id" element={guard(<JobDetailPage />)} />
       <Route path="/queue" element={guard(<QueuePage />)} />
       <Route path="/reports" element={guard(<ReportsPage />)} />
+      <Route path="/qr" element={guard(<QrRoute />)} />
       <Route path="/users" element={guard(<UsersRoute />)} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

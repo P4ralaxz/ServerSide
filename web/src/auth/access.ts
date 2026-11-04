@@ -11,4 +11,7 @@ export const HOME: Record<Role, string> = { student: '/report', technician: '/jo
 // สวิตช์ "ความเห็นภายใน" — นักศึกษาไม่เห็นและเขียนไม่ได้ (DESIGN 4.3) ถ้าโชว์สวิตช์ให้นักศึกษา กดแล้ว API ตอบ 403
 export const canWriteInternal = (role: Role | undefined): boolean => role !== undefined && role !== 'student';
 
+// หน้าพิมพ์ QR — API /assets/:id/qr เป็นของ staff / admin (เจ้าหน้าที่เป็นคนติดสติกเกอร์)
+export const canPrintQr = (role: Role | undefined): boolean => role === 'staff' || role === 'admin';
+
 export const canManageUsers = (role: Role | undefined): boolean => role === 'admin';
