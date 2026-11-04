@@ -1,4 +1,5 @@
 import '../src/common/time/utc';
+import { BASE_DATABASE_URL } from './ui-db-env';
 import { Test } from '@nestjs/testing';
 import { AbstractLoader, ExpressLoader } from '@nestjs/serve-static';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -7,8 +8,9 @@ import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { MailService } from '../src/modules/auth/mail.service';
 import { FakeMailService } from './setup/app';
+import { ensureUiDatabase } from './ui-db';
 
-// backend จริงสำหรับ Playwright (npm run web:e2e) — DB ของ dev ที่ seed ใหม่ + หน้าเว็บจาก web/dist
+// backend จริงสำหรับ Playwright (npm run web:e2e) — DB แยกของเทส (dorm_ui, ดู ui-db.ts) ที่ seed ใหม่ + หน้าเว็บจาก web/dist
 // ต่างจากของจริงที่เดียว: MailService เป็นตัวปลอมที่เขียนรหัส OTP ลงไฟล์ ให้เทสอ่านแทนการเปิดกล่องเมล
 // จึงไม่ต้องมี endpoint สำหรับเทส (ที่ถ้าหลุดไปถึงเครื่องจริงจะเป็นช่องให้ login เป็นใครก็ได้)
 const port = Number(process.env.UI_PORT ?? 3199);
@@ -31,6 +33,7 @@ class FileMailService extends FakeMailService {
 }
 
 void (async () => {
+  await ensureUiDatabase(BASE_DATABASE_URL);
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(MailService)
     .useValue(new FileMailService())
