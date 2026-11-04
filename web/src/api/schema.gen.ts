@@ -329,6 +329,7 @@ export interface TicketView {
   building: BuildingRefView;
   assignee: UserRefView | null;
   last_reopen_note: string | null;
+  waiting_for_parts: string | null;
   auto_close_at: string | null;
   actions: UiAction[];
 }

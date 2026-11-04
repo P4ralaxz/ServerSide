@@ -56,6 +56,7 @@ export class TicketViewService {
 
     const ticketIds = tickets.map((t) => t.id);
     const reopenNotes = await this.lastReopenNotes(q, ticketIds);
+    const partsNotes = await this.waitingParts(q, tickets);
     // ใบที่ผู้ใช้คนนี้กด "เจอปัญหาเดียวกัน" ไปแล้ว — อ่านเป็นชุดเดียว ไม่ใช่ต่อแถว
     const reportedRows: { ticket_id: string }[] = await q.query(
       `SELECT ticket_id FROM ticket_reporters WHERE user_id = $1 AND ticket_id = ANY($2::uuid[])`,
@@ -98,6 +99,7 @@ export class TicketViewService {
         building: { id: asset?.building_id ?? '', name: asset?.building_name ?? '' } satisfies BuildingRefView,
         assignee: assignee ? ({ id: assignee.id, name: assignee.full_name } satisfies UserRefView) : null,
         last_reopen_note: reopenNotes.get(t.id) ?? null,
+        waiting_for_parts: partsNotes.get(t.id) ?? null,
         auto_close_at: autoCloseAt(t, afterHours),
         // ปุ่มคิดจาก policy ตัวเดียวกับที่ endpoint ใช้ — ไม่มี query เพิ่มต่อแถว
         actions: this.policy.allowedActions(user, t, { alreadyReported: reportedByMe.has(t.id) }),
@@ -121,6 +123,22 @@ export class TicketViewService {
         WHERE ticket_id = ANY($1::uuid[]) AND from_status = 'resolved' AND to_status = 'assigned'
         ORDER BY ticket_id, created_at DESC, id DESC`,
       [ticketIds],
+    );
+    return new Map(rows.map((r) => [r.ticket_id, r.note]));
+  }
+
+  // อะไหล่ที่ใบนี้รออยู่ = note ของการเข้าขั้น pending_parts ครั้งล่าสุด (API บังคับ note ตอนเข้าขั้นนี้)
+  // ส่งเฉพาะใบที่ยังรออะไหล่อยู่ตอนนี้ — ใบที่ซ่อมต่อแล้ว note เก่าไม่ใช่สิ่งที่ "รออยู่" อีกต่อไป
+  // รายการงานของช่างแสดงค่านี้ทุกแถว (UI-PLAN 5) จึงอ่านเป็นชุดเดียว ไม่ให้หน้าเว็บยิง history ทีละใบ
+  private async waitingParts(q: EntityManager, tickets: Ticket[]): Promise<Map<string, string | null>> {
+    const waiting = tickets.filter((t) => t.status === 'pending_parts').map((t) => t.id);
+    if (waiting.length === 0) return new Map();
+    const rows: { ticket_id: string; note: string | null }[] = await q.query(
+      `SELECT DISTINCT ON (ticket_id) ticket_id, note
+         FROM ticket_status_logs
+        WHERE ticket_id = ANY($1::uuid[]) AND to_status = 'pending_parts'
+        ORDER BY ticket_id, created_at DESC, id DESC`,
+      [waiting],
     );
     return new Map(rows.map((r) => [r.ticket_id, r.note]));
   }

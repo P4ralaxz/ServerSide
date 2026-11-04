@@ -339,6 +339,14 @@ export class TicketView {
   last_reopen_note: string | null;
 
   @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'อะไหล่ที่รออยู่ (note ของการเข้าขั้น pending_parts ครั้งล่าสุด) — มีค่าเฉพาะใบที่ status = pending_parts',
+  })
+  waiting_for_parts: string | null;
+
+  @ApiProperty({
     type: Date,
     nullable: true,
     description: 'resolved และยังไม่มีคนแย้ง = เวลาที่ระบบจะปิดให้ · กรณีอื่น NULL',

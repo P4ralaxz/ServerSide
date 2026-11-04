@@ -734,6 +734,30 @@ describe('workflow', () => {
         expect(Array.isArray(item.actions)).toBe(true);
       }
     });
+
+    // รายการงานของช่างแสดงอะไหล่ที่รอทุกแถว (UI-PLAN 5) — ค่ามากับรายการเลย ไม่ต้องเปิด history ทีละใบ
+    it('waiting_for_parts = note ของการเข้าขั้นรออะไหล่ครั้งล่าสุด ทั้งในรายการและรายละเอียด', async () => {
+      // อนุญาตให้เข้าห้อง — ไม่งั้นกลับมาซ่อมต่อไม่ได้ถ้าไม่มีนัด (DESIGN 6.7)
+      const t = await existing(dorm.alice, dorm.ac1, 'in_progress', { permissionToEnter: true });
+      await setStatus(dorm.tech, t, 'pending_parts', 'คาปาซิเตอร์ 2 ตัว');
+      expect((await setStatus(dorm.tech, t, 'in_progress')).status).toBe(200);
+      expect((await setStatus(dorm.tech, t, 'pending_parts', 'บอร์ดควบคุม')).status).toBe(200);
+      const detail = await http()
+        .get(`/tickets/${t}`)
+        .set(await as(dorm.tech));
+      expect(detail.body.waiting_for_parts).toBe('บอร์ดควบคุม');
+      const list = await http()
+        .get('/tickets')
+        .set(await as(dorm.tech));
+      expect(list.body.find((x: { id: string }) => x.id === t).waiting_for_parts).toBe('บอร์ดควบคุม');
+    });
+
+    it('waiting_for_parts เป็น null เมื่อซ่อมต่อแล้ว — note เก่าไม่ใช่สิ่งที่รออยู่', async () => {
+      // อนุญาตให้เข้าห้อง — ไม่งั้นกลับมาซ่อมต่อไม่ได้ถ้าไม่มีนัด (DESIGN 6.7)
+      const t = await existing(dorm.alice, dorm.ac1, 'in_progress', { permissionToEnter: true });
+      await setStatus(dorm.tech, t, 'pending_parts', 'คาปาซิเตอร์');
+      expect((await setStatus(dorm.tech, t, 'in_progress')).body.waiting_for_parts).toBeNull();
+    });
   });
 
   describe('GET /:id/history', () => {
