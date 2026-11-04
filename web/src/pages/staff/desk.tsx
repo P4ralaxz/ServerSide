@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { canManageUsers } from '../../auth/access';
 import { LogoutButton } from '../../auth/LogoutButton';
 import { useMe } from '../../auth/RequireAuth';
 import { Icon } from '../../ui/icons';
+import { roleLabel } from '../../ui/role';
 
-const ROLE_LABEL: Record<string, string> = { staff: 'Staff', admin: 'Admin' };
-
-// แถบบนของหน้าเดสก์ท็อป (desk-bar ของต้นแบบ) + เมนูระหว่างคิวงานกับรายงาน
-export function DeskBar({ active }: { active: 'queue' | 'reports' }) {
+// แถบบนของหน้าเดสก์ท็อป (desk-bar ของต้นแบบ) + เมนูคิวงาน / รายงาน / ผู้ใช้ (admin)
+export function DeskBar({ active }: { active: 'queue' | 'reports' | 'users' }) {
   const me = useMe();
   const name = me?.full_name ?? me?.email ?? '';
   return (
@@ -23,12 +23,17 @@ export function DeskBar({ active }: { active: 'queue' | 'reports' }) {
         <Link to="/reports" aria-current={active === 'reports' ? 'page' : undefined}>
           รายงาน
         </Link>
+        {canManageUsers(me?.role) && (
+          <Link to="/users" aria-current={active === 'users' ? 'page' : undefined}>
+            ผู้ใช้
+          </Link>
+        )}
       </nav>
       <span className="who">
         <span className="avatar" aria-hidden="true">
           {name.slice(0, 1)}
         </span>
-        {name} ({ROLE_LABEL[me?.role ?? ''] ?? me?.role})
+        {name} {me && `(${roleLabel(me.role)})`}
         <LogoutButton />
       </span>
     </div>

@@ -20,7 +20,7 @@ module.exports = {
   overrides: [
     {
       // UI-PLAN 2 ข้อ 1: หน้าจอไม่มีกฎทางธุรกิจ — ปุ่มมาจาก actions / can_report ที่ API ส่งมาเท่านั้น
-      // การแปลงสถานะเป็นข้อความ สี และกลุ่ม อยู่ที่ ui/status.ts ที่เดียว · role ใช้เลือกหน้าแรกใน routes.tsx เท่านั้น
+      // การแปลงสถานะเป็นข้อความ สี และกลุ่ม อยู่ที่ ui/status.ts ที่เดียว · role ใช้เลือกหน้าใน routes.tsx / auth/access.ts เท่านั้น
       // ถ้า pages/ เทียบ .status / .role เอง วันหนึ่งหน้าจอจะโชว์ปุ่มที่ API ตอบ 403/409
       files: ['src/pages/**/*.{ts,tsx}'],
       rules: {

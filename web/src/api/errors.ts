@@ -6,6 +6,9 @@ const detail = (e: ApiError, key: string): unknown =>
 
 export const NOT_FOUND_TICKET = 'ไม่พบใบนี้ หรือคุณไม่มีสิทธิ์ดู';
 
+// UNIQUE_VIOLATION มาจาก DbErrorFilter ไม่บอกว่าซ้ำที่คอลัมน์ไหน — ตอนเพิ่มบัญชีมีแค่อีเมลที่ซ้ำได้ หน้านั้นจึงใช้ข้อความนี้เอง
+export const EMAIL_TAKEN = 'อีเมลนี้มีบัญชีอยู่แล้ว';
+
 export const errorMessage = (e: unknown): string => {
   if (!(e instanceof ApiError)) return 'เชื่อมต่อระบบไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่';
   switch (e.code) {
@@ -27,6 +30,15 @@ export const errorMessage = (e: unknown): string => {
       return NOT_FOUND_TICKET;
     case 'FORBIDDEN':
       return 'คุณไม่มีสิทธิ์ทำรายการนี้';
+    case 'TECHNICIAN_HAS_OPEN_TICKETS': {
+      const tickets = detail(e, 'tickets');
+      const list = Array.isArray(tickets) ? tickets.map(String) : [];
+      return `ช่างคนนี้ยังมีงานค้าง ${list.length} ใบ (${list.join(', ')}) ให้มอบหมายให้ช่างคนอื่นก่อน`;
+    }
+    case 'ROOM_FULL':
+      return 'ห้องนี้มีผู้พักครบแล้ว';
+    case 'CANNOT_CHANGE_SELF':
+      return 'เปลี่ยนบทบาทหรือระงับบัญชีของตัวเองไม่ได้';
     default:
       return e.message;
   }

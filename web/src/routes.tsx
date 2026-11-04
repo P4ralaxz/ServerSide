@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { canManageUsers, HOME } from './auth/access';
 import { RequireAuth, useMe } from './auth/RequireAuth';
+import { UsersPage } from './pages/admin/UsersPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage, RolePendingPage } from './pages/NotFoundPage';
 import { ReportsPage } from './pages/reports/ReportsPage';
@@ -11,11 +13,7 @@ import { TicketDetailPage } from './pages/student/TicketDetailPage';
 import { JobDetailPage } from './pages/tech/JobDetailPage';
 import { JobsPage } from './pages/tech/JobsPage';
 
-// role ใช้ได้ที่ไฟล์นี้ที่เดียว และใช้แค่เลือกว่าจะเปิดหน้าไหน (UI-PLAN 2 ข้อ 1) — สิทธิ์จริงตรวจที่ API ทุกครั้ง
-// staff / admin ใช้หน้าเดียวกัน: admin ได้สิทธิ์ของ staff ทั้งหมดที่ API (DESIGN 4.2)
-type Role = 'student' | 'technician' | 'staff' | 'admin';
-const HOME: Record<Role, string> = { student: '/report', technician: '/jobs', staff: '/queue', admin: '/queue' };
-
+// role ใช้ได้ที่ไฟล์นี้กับ auth/access.ts เท่านั้น และใช้แค่เลือกว่าจะเปิดหน้าไหน (UI-PLAN 2 ข้อ 1) — สิทธิ์จริงตรวจที่ API ทุกครั้ง
 function Home() {
   const me = useMe();
   const home = me ? HOME[me.role] : undefined;
@@ -32,6 +30,12 @@ function TicketRoute() {
   return <TicketDetailPage />;
 }
 
+// คนที่ไม่ใช่ admin เปิด /app/users ตรง ๆ → กลับหน้าแรกของตัวเอง (API ก็ตอบ 403 อยู่แล้ว)
+function UsersRoute() {
+  const me = useMe();
+  return canManageUsers(me?.role) ? <UsersPage /> : <Navigate to="/" replace />;
+}
+
 export function AppRoutes() {
   const guard = (el: JSX.Element) => <RequireAuth>{el}</RequireAuth>;
   return (
@@ -46,6 +50,7 @@ export function AppRoutes() {
       <Route path="/jobs/:id" element={guard(<JobDetailPage />)} />
       <Route path="/queue" element={guard(<QueuePage />)} />
       <Route path="/reports" element={guard(<ReportsPage />)} />
+      <Route path="/users" element={guard(<UsersRoute />)} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
