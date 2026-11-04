@@ -91,6 +91,14 @@ export class TicketPolicy {
       case 'cancel':
         // ถอนคำแจ้งของตัวเอง — สิทธิ์ของผู้แจ้ง ไม่ใช่สิทธิ์ของห้อง
         return actor === 'student' && ticket.reporterId === user.id;
+      case 'comment':
+        // คนที่เกี่ยวกับใบ: ผู้พัก (เงื่อนไขเดียวกับ same_issue) · ช่างเจ้าของงาน · Staff
+        // ผู้แจ้งที่ย้ายห้องไปแล้วยังเห็นใบ (visibilityFilter) แต่ไม่ใช่ผู้พักของห้องนั้นแล้ว จึงเขียนไม่ได้
+        return (
+          actor === 'staff' ||
+          (actor === 'technician' && ticket.assignedTo === user.id) ||
+          (actor === 'student' && (!isRoom || livesIn(user, ticket.roomId)))
+        );
       case 'change_status':
         return actor === 'technician' && ticket.assignedTo === user.id;
       case 'schedule':
@@ -125,6 +133,12 @@ export class TicketPolicy {
       const asSameStatus = (SAME_STATUS_ALLOWED[a] ?? []).includes(ticket.status);
       return asTransition || asSameStatus;
     });
+  }
+
+  // ความเห็นภายใน (DESIGN 4.3): นักศึกษาไม่เห็นและเขียนไม่ได้ — ใช้ทั้งตอนอ่านและตอนเขียน ห้ามแยกเงื่อนไข
+  // ช่างที่เห็นใบได้เห็นความเห็นภายในของใบนั้นด้วย: ใช้คุยกับ Staff เรื่องที่ไม่ควรถึงผู้พัก (อะไหล่ ค่าใช้จ่าย)
+  canSeeInternal(user: PolicyUser): boolean {
+    return actorOf(user) !== 'student';
   }
 
   assertCan(action: TicketAction, user: PolicyUser | null, ticket: PolicyTicket): void {

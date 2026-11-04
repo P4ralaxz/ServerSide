@@ -79,6 +79,12 @@ describe('TicketPolicy.can — ตาราง 4.2 ของ DESIGN', () => {
     ['assign', ['staff-1', 'admin-1'], ['staff-1', 'admin-1']],
     ['reject', ['staff-1', 'admin-1'], ['staff-1', 'admin-1']],
     ['set_priority', ['staff-1', 'admin-1'], ['staff-1', 'admin-1']],
+    // comment (สัปดาห์ 6): ผู้พักเหมือน same_issue + ช่างเจ้าของงาน + staff/admin · คนที่ไม่มีห้องเขียนได้แค่ส่วนกลาง
+    [
+      'comment',
+      ['alice', 'roommate', 'tech', 'staff-1', 'admin-1'],
+      ['alice', 'roommate', 'bob', 'homeless', 'tech', 'staff-1', 'admin-1'],
+    ],
     ['auto_close', [], []],
   ])('%s', (action, onRoom, onCommon) => {
     expect(allowed(action, roomTicket)).toEqual(onRoom);
@@ -92,6 +98,7 @@ describe('TicketPolicy.can — ตาราง 4.2 ของ DESIGN', () => {
         'auto_close',
         'cancel',
         'change_status',
+        'comment',
         'confirm',
         'reject',
         'reopen',
@@ -121,6 +128,7 @@ describe('TicketPolicy.can — ตาราง 4.2 ของ DESIGN', () => {
     const movedOut = user('student', ROOM_B, 'alice');
     expect(policy.can('confirm', movedOut, roomTicket)).toBe(false);
     expect(policy.can('same_issue', movedOut, roomTicket)).toBe(false);
+    expect(policy.can('comment', movedOut, roomTicket)).toBe(false);
     expect(policy.can('cancel', movedOut, roomTicket)).toBe(true);
     expect(policy.canSee(movedOut, roomTicket)).toBe(true);
   });
@@ -177,32 +185,43 @@ describe('TicketPolicy.allowedActions — ปุ่มที่ส่งให�
   });
 
   it.each<[string, PolicyUser, PolicyTicket, UiAction[]]>([
-    ['ผู้แจ้ง · ใบ open', alice, at('open', { assignedTo: null }), ['cancel', 'same_issue']],
-    ['รูมเมท · ใบ open (ไม่ใช่ผู้แจ้ง จึงยกเลิกไม่ได้)', roommate, at('open', { assignedTo: null }), ['same_issue']],
-    ['Staff · ใบ open', staff, at('open', { assignedTo: null }), ['assign', 'reject', 'priority']],
-    ['admin · ใบ open (เท่ากับ staff)', admin, at('open', { assignedTo: null }), ['assign', 'reject', 'priority']],
-    ['ช่างเจ้าของงาน · ใบ assigned', tech, at('assigned'), ['schedule', 'start']],
+    ['ผู้แจ้ง · ใบ open', alice, at('open', { assignedTo: null }), ['cancel', 'same_issue', 'comment']],
+    [
+      'รูมเมท · ใบ open (ไม่ใช่ผู้แจ้ง จึงยกเลิกไม่ได้)',
+      roommate,
+      at('open', { assignedTo: null }),
+      ['same_issue', 'comment'],
+    ],
+    ['Staff · ใบ open', staff, at('open', { assignedTo: null }), ['comment', 'assign', 'reject', 'priority']],
+    [
+      'admin · ใบ open (เท่ากับ staff)',
+      admin,
+      at('open', { assignedTo: null }),
+      ['comment', 'assign', 'reject', 'priority'],
+    ],
+    ['ช่างเจ้าของงาน · ใบ assigned', tech, at('assigned'), ['comment', 'schedule', 'start']],
     ['ช่างคนอื่น · ใบ assigned', otherTech, at('assigned'), []],
     [
       'Staff · ใบ assigned (เปลี่ยนตัวช่างได้ ขั้นไม่เปลี่ยน)',
       staff,
       at('assigned'),
-      ['assign', 'reject', 'priority', 'schedule'],
+      ['comment', 'assign', 'reject', 'priority', 'schedule'],
     ],
-    ['ช่าง · ใบ in_progress', tech, at('in_progress'), ['schedule', 'pending_parts', 'resolve']],
-    ['ช่าง · ใบ pending_parts', tech, at('pending_parts'), ['schedule', 'resume']],
+    ['ช่าง · ใบ in_progress', tech, at('in_progress'), ['comment', 'schedule', 'pending_parts', 'resolve']],
+    ['ช่าง · ใบ pending_parts', tech, at('pending_parts'), ['comment', 'schedule', 'resume']],
     // กฎข้อ 2: ช่างไม่มีปุ่มปิดใบ และ Staff ไม่มีปุ่มยืนยันใบห้องพัก
-    ['ช่าง · ใบ resolved (ปิดเองไม่ได้)', tech, at('resolved'), []],
-    ['ผู้พัก · ใบ resolved', roommate, at('resolved'), ['same_issue', 'confirm', 'reopen']],
-    ['Staff · ใบ resolved ของห้องพัก (ยืนยันแทนไม่ได้)', staff, at('resolved'), ['priority']],
+    ['ช่าง · ใบ resolved (ปิดเองไม่ได้)', tech, at('resolved'), ['comment']],
+    ['ผู้พัก · ใบ resolved', roommate, at('resolved'), ['same_issue', 'comment', 'confirm', 'reopen']],
+    ['Staff · ใบ resolved ของห้องพัก (ยืนยันแทนไม่ได้)', staff, at('resolved'), ['comment', 'priority']],
     [
       'Staff · ใบ resolved ส่วนกลาง',
       staff,
       at('resolved', { scope: 'common_area', roomId: null }),
-      ['priority', 'confirm', 'reopen'],
+      ['comment', 'priority', 'confirm', 'reopen'],
     ],
-    ['ผู้พัก · ใบ closed', roommate, at('closed'), []],
-    ['Staff · ใบ closed (priority ก็แก้ไม่ได้)', staff, at('closed'), []],
+    // ใบที่จบแล้วเหลือแค่ความเห็น (ไม่มี 409 ของ comment — DESIGN 7)
+    ['ผู้พัก · ใบ closed', roommate, at('closed'), ['comment']],
+    ['Staff · ใบ closed (priority ก็แก้ไม่ได้)', staff, at('closed'), ['comment']],
   ])('%s', (_name, who, ticket, expected) => {
     expect(policy.allowedActions(who, ticket)).toEqual(expected);
   });
@@ -221,20 +240,28 @@ describe('TicketPolicy.allowedActions — ปุ่มที่ส่งให�
   // ปุ่มที่กดแล้วได้ 409 ต้องไม่โผล่ — contract test ของ e2e คุมอีกชั้น
   it('ใบห้องพักที่ยังเข้าไม่ได้: ไม่มีปุ่มเริ่มงาน จนกว่าจะมีนัด (DESIGN 6.7)', () => {
     const locked = { ...roomTicket, status: 'assigned' as const, permissionToEnter: false };
-    expect(policy.allowedActions(tech, locked)).toEqual(['schedule']);
-    expect(policy.allowedActions(tech, { ...locked, scheduledAt: new Date() })).toEqual(['schedule', 'start']);
+    expect(policy.allowedActions(tech, locked)).toEqual(['comment', 'schedule']);
+    expect(policy.allowedActions(tech, { ...locked, scheduledAt: new Date() })).toEqual([
+      'comment',
+      'schedule',
+      'start',
+    ]);
     // รออะไหล่แล้วกลับมาซ่อมต่อก็ต้องเข้าห้องได้เหมือนกัน
     const parts = { ...locked, status: 'pending_parts' as const };
-    expect(policy.allowedActions(tech, parts)).toEqual(['schedule']);
-    expect(policy.allowedActions(tech, { ...parts, scheduledAt: new Date() })).toEqual(['schedule', 'resume']);
+    expect(policy.allowedActions(tech, parts)).toEqual(['comment', 'schedule']);
+    expect(policy.allowedActions(tech, { ...parts, scheduledAt: new Date() })).toEqual([
+      'comment',
+      'schedule',
+      'resume',
+    ]);
   });
 
   it('คนที่กดเจอปัญหาเดียวกันไปแล้ว ไม่มีปุ่มนั้นอีก (กดซ้ำได้ 409)', () => {
-    expect(policy.allowedActions(roommate, roomTicket, { alreadyReported: true })).toEqual([]);
-    expect(policy.allowedActions(alice, roomTicket, { alreadyReported: true })).toEqual(['cancel']);
+    expect(policy.allowedActions(roommate, roomTicket, { alreadyReported: true })).toEqual(['comment']);
+    expect(policy.allowedActions(alice, roomTicket, { alreadyReported: true })).toEqual(['cancel', 'comment']);
   });
 
-  it('ไม่ส่งปุ่มที่ endpoint ยังไม่เกิด (ว่างตั้งแต่สัปดาห์ 5 — comment จะเข้ามาสัปดาห์ 6)', () => {
+  it('ไม่ส่งปุ่มที่ endpoint ยังไม่เกิด (ว่างตั้งแต่สัปดาห์ 5)', () => {
     for (const status of TICKET_STATUSES) {
       for (const u of everyone) {
         for (const a of UI_ACTIONS_NOT_IMPLEMENTED) expect(policy.allowedActions(u, at(status))).not.toContain(a);

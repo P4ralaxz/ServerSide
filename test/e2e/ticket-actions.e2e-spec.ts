@@ -120,6 +120,8 @@ describe('actions ↔ endpoint', () => {
         return http().post(url).set(headers).send({ note: 'ไม่อยู่ในความรับผิดชอบ' });
       case 'reopen':
         return http().post(url).set(headers).send({ note: 'ยังมีเสียงดังอยู่' });
+      case 'comment':
+        return http().post(url).set(headers).send({ body: 'สอบถามความคืบหน้า' });
       case 'start':
       case 'resume':
       case 'pending_parts':
@@ -170,7 +172,9 @@ describe('actions ↔ endpoint', () => {
         for (const action of actions) {
           const fresh = await ticketAt(status, scope);
           const res = await fire(user.id, fresh, action, fx.tech);
-          if (res.status !== 200) violations.push(`${label(action)} → ${res.status} (ปุ่มที่ส่งมาต้องกดได้)`);
+          // comment สร้างแถวใหม่จึงตอบ 201 (DESIGN 7) · ปุ่มอื่นแก้ใบเดิมตอบ 200
+          const ok = action === 'comment' ? 201 : 200;
+          if (res.status !== ok) violations.push(`${label(action)} → ${res.status} (ปุ่มที่ส่งมาต้องกดได้)`);
         }
       }
       expect(violations).toEqual([]);

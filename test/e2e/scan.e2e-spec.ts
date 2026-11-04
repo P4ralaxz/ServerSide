@@ -124,14 +124,14 @@ describe('scan + open_ticket ของครุภัณฑ์', () => {
       const t = await openTicket(fx.ac1);
       const res = await scan(fx.alice, fx.ac1);
       expect(res.body.open_ticket).toMatchObject({ id: t, status: 'open', reported_by_me: true });
-      expect(res.body.open_ticket.actions).toEqual(['cancel']);
+      expect(res.body.open_ticket.actions).toEqual(['cancel', 'comment']);
       expect(res.body.can_report).toBe(false);
     });
 
     it('รูมเมทสแกนชิ้นเดียวกัน: reported_by_me = false และมีปุ่มเจอปัญหาเดียวกัน', async () => {
       await openTicket(fx.ac1);
       const res = await scan(fx.roommate, fx.ac1);
-      expect(res.body.open_ticket).toMatchObject({ reported_by_me: false, actions: ['same_issue'] });
+      expect(res.body.open_ticket).toMatchObject({ reported_by_me: false, actions: ['same_issue', 'comment'] });
       expect(res.body.can_report).toBe(false);
     });
 
@@ -153,8 +153,13 @@ describe('scan + open_ticket ของครุภัณฑ์', () => {
 
     it('ครุภัณฑ์ส่วนกลาง: นักศึกษาทุกห้องเห็นใบเดียวกัน · staff เห็นพร้อมปุ่มของ staff', async () => {
       await openTicket(fx.lift1, 'open', fx.bob);
-      expect((await scan(fx.alice, fx.lift1)).body.open_ticket.actions).toEqual(['same_issue']);
-      expect((await scan(fx.staff, fx.lift1)).body.open_ticket.actions).toEqual(['assign', 'reject', 'priority']);
+      expect((await scan(fx.alice, fx.lift1)).body.open_ticket.actions).toEqual(['same_issue', 'comment']);
+      expect((await scan(fx.staff, fx.lift1)).body.open_ticket.actions).toEqual([
+        'comment',
+        'assign',
+        'reject',
+        'priority',
+      ]);
     });
 
     it('ช่างเห็นใบของงานที่ตัวเองรับ แต่ไม่เห็นใบที่ยังไม่ได้มอบหมายให้ตัวเอง', async () => {

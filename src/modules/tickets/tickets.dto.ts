@@ -29,6 +29,8 @@ import {
   TicketPriority,
   TicketScope,
   TicketStatus,
+  USER_ROLES,
+  UserRole,
 } from '../../domain/enums';
 import { MAX_ITEMS_PER_BATCH, TICKET_LIST_DEFAULT_LIMIT, TICKET_LIST_MAX_LIMIT } from '../../domain/limits';
 import { UI_ACTIONS, UiAction } from '../../domain/status-rules';
@@ -462,4 +464,44 @@ export class AutoCloseRunView {
 
   @ApiProperty({ type: [AutoClosedTicket] })
   tickets: AutoClosedTicket[];
+}
+
+export class CreateCommentDto {
+  // ตัดช่องว่างก่อนตรวจ — ข้อความที่มีแต่ช่องว่างต้องได้ 400 ไม่ใช่ความคิดเห็นว่าง ๆ บนใบ
+  @ApiProperty({ example: 'ช่างจะเข้าห้องได้ช่วงบ่ายไหมครับ', maxLength: 2000 })
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  body: string;
+
+  @ApiPropertyOptional({
+    default: false,
+    description: 'ความเห็นภายใน — นักศึกษาไม่เห็น และส่ง true ไม่ได้ (403)',
+  })
+  @IsOptional()
+  @IsBoolean()
+  is_internal?: boolean;
+}
+
+export class CommentAuthorView extends UserRefView {
+  @ApiProperty({ enum: USER_ROLES, description: 'หน้าจอใช้บอกว่าเป็นช่าง / เจ้าหน้าที่ เมื่อยังไม่กรอกชื่อ' })
+  role: UserRole;
+}
+
+export class CommentView {
+  @ApiProperty({ example: '12' })
+  id: string;
+
+  @ApiProperty()
+  body: string;
+
+  @ApiProperty({ description: 'true = เห็นเฉพาะช่าง / Staff / admin' })
+  is_internal: boolean;
+
+  @ApiProperty()
+  created_at: Date;
+
+  @ApiProperty({ type: CommentAuthorView })
+  author: CommentAuthorView;
 }

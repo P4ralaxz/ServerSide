@@ -86,6 +86,25 @@ export interface ChangeStatusDto {
   note?: string;
 }
 
+export interface CommentAuthorView {
+  id: string;
+  name: string | null;
+  role: 'student' | 'technician' | 'staff' | 'admin';
+}
+
+export interface CommentView {
+  id: string;
+  body: string;
+  is_internal: boolean;
+  created_at: string;
+  author: CommentAuthorView;
+}
+
+export interface CreateCommentDto {
+  body: string;
+  is_internal?: boolean;
+}
+
 export interface CreateTicketItemDto {
   asset_id: string;
   title: string;
@@ -340,7 +359,7 @@ export interface TokenResponse {
   user: UserView;
 }
 
-export type UiAction = 'cancel' | 'same_issue' | 'assign' | 'reject' | 'priority' | 'schedule' | 'start' | 'pending_parts' | 'resume' | 'resolve' | 'confirm' | 'reopen';
+export type UiAction = 'cancel' | 'same_issue' | 'comment' | 'assign' | 'reject' | 'priority' | 'schedule' | 'start' | 'pending_parts' | 'resume' | 'resolve' | 'confirm' | 'reopen';
 
 export interface UpdateUserDto {
   role?: 'student' | 'technician' | 'staff' | 'admin';

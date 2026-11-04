@@ -42,6 +42,7 @@ export const ENDPOINTS = [
   '/schedule',
   '/priority',
   '/same-issue',
+  '/comments',
   'system:auto-close',
 ] as const;
 export type Endpoint = (typeof ENDPOINTS)[number];
@@ -56,6 +57,7 @@ export type TicketAction =
   | 'schedule'
   | 'set_priority'
   | 'same_issue'
+  | 'comment'
   | 'auto_close';
 
 // สถานะปลายทางเดียวกันมาได้จากหลาย endpoint ที่ใช้สิทธิ์คนละชุด
@@ -73,6 +75,7 @@ export const VIA_ACTION: Record<Endpoint, TicketAction> = {
   '/schedule': 'schedule',
   '/priority': 'set_priority',
   '/same-issue': 'same_issue',
+  '/comments': 'comment',
   'system:auto-close': 'auto_close',
 };
 
@@ -123,11 +126,11 @@ export const canGoVia = (from: TicketStatus, to: TicketStatus, via: Endpoint, ac
 // ชื่อปุ่มที่ส่งให้หน้าจอ — ไม่ใช่ชุดเดียวกับ TicketAction ของ policy (DESIGN 7.1)
 // policy มี 'change_status' ตัวเดียวสำหรับ 4 ปุ่มของช่าง เพราะทั้งสี่ใช้สิทธิ์ชุดเดียวกัน
 // แต่หน้าจอต้องรู้ว่า "ตอนนี้" กดปุ่มไหนได้ จึงต้องแตกตามคู่สถานะ
-// 'comment' จะเพิ่มเข้ามาพร้อม endpoint comments ในสัปดาห์ 6 — ชื่อปุ่มที่ยังไม่มี endpoint
-// ห้ามอยู่ในตารางนี้แม้จะกรองออกทีหลัง เพราะต้องชี้ไป endpoint ปลอมซึ่ง contract test จะยิงจริง
+// ชื่อปุ่มที่ยังไม่มี endpoint ห้ามอยู่ในตารางนี้แม้จะกรองออกทีหลัง เพราะต้องชี้ไป endpoint ปลอมซึ่ง contract test จะยิงจริง
 export type UiAction =
   | 'cancel'
   | 'same_issue'
+  | 'comment'
   | 'assign'
   | 'reject'
   | 'priority'
@@ -147,6 +150,7 @@ export const UI_ACTION_CALL: Record<
 > = {
   cancel: { endpoint: '/cancel', to: 'cancelled' },
   same_issue: { endpoint: '/same-issue' },
+  comment: { endpoint: '/comments' },
   assign: { endpoint: '/assign', to: 'assigned' },
   reject: { endpoint: '/reject', to: 'rejected' },
   priority: { endpoint: '/priority' },
@@ -162,7 +166,7 @@ export const UI_ACTION_CALL: Record<
 export const UI_ACTIONS = Object.keys(UI_ACTION_CALL) as UiAction[];
 
 // ปุ่มที่ endpoint ยังไม่เกิด — ห้ามส่งชื่อปุ่มที่หน้าจอกดแล้ว 404 (ตัดชื่อออกเมื่อ endpoint นั้นมีจริง)
-// ว่างตั้งแต่ /reopen มาในสัปดาห์ 5 · 'comment' ยังไม่อยู่ใน UiAction เลยเพราะต้องมี endpoint ก่อน (สัปดาห์ 6)
+// ว่างตั้งแต่ /reopen มาในสัปดาห์ 5
 export const UI_ACTIONS_NOT_IMPLEMENTED: readonly UiAction[] = [];
 
 // สถานะที่ action ซึ่ง "ไม่เปลี่ยนขั้น" ทำได้ — endpoint และ allowedActions อ่านตารางเดียวกันนี้
@@ -172,6 +176,8 @@ export const SAME_STATUS_ALLOWED: Partial<Record<UiAction, readonly TicketStatus
   schedule: ['assigned', 'in_progress', 'pending_parts'],
   priority: OPEN_STATUSES,
   same_issue: OPEN_STATUSES,
+  // ไม่มี 409 ของ comment (DESIGN 7) — ใบที่จบแล้วยังถามต่อได้ เช่น ผู้พักถามว่าทำไมถูกปฏิเสธ
+  comment: TICKET_STATUSES,
 };
 
 // ห้องพักเป็นพื้นที่ส่วนตัว: ช่างเข้าไปทำงานได้เมื่อผู้แจ้งอนุญาต หรือมีนัดแล้ว (DESIGN 6.7)

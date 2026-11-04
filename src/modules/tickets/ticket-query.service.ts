@@ -106,7 +106,8 @@ export class TicketQueryService {
     return [...statusEntries, ...auditEntries].sort((a, b) => a.at.getTime() - b.at.getTime());
   }
 
-  private async loadVisible(user: User, id: string): Promise<Ticket> {
+  // ชั้น 0 ของทุก endpoint ที่อ่านใบตาม id (รวม comments)
+  async loadVisible(user: User, id: string): Promise<Ticket> {
     const ticket = await this.policy
       .visibilityFilter(user, this.dataSource.getRepository(Ticket).createQueryBuilder('t'))
       .andWhere('t.id = :id', { id })

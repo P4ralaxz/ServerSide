@@ -24,6 +24,8 @@ import { RoomsService } from './modules/rooms/rooms.service';
 import { ScanController } from './modules/scan/scan.controller';
 import { ScanService } from './modules/scan/scan.service';
 import { AutoCloseJob } from './modules/tickets/auto-close.job';
+import { CommentsController } from './modules/tickets/comments.controller';
+import { TicketCommentService } from './modules/tickets/ticket-comment.service';
 import { TicketCreationService } from './modules/tickets/ticket-creation.service';
 import { TicketPolicy } from './modules/tickets/ticket-policy.service';
 import { TicketQueryService } from './modules/tickets/ticket-query.service';
@@ -66,6 +68,7 @@ import { UsersService } from './modules/users/users.service';
     RoomsController,
     AssetsController,
     TicketsController,
+    CommentsController,
     ScanController,
     AdminJobsController,
     ReportsController,
@@ -80,6 +83,7 @@ import { UsersService } from './modules/users/users.service';
     TicketCreationService,
     TicketQueryService,
     TicketWorkflowService,
+    TicketCommentService,
     ScanService,
     AutoCloseJob,
     ReportsService,

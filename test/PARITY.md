@@ -856,6 +856,24 @@ endpoint: `GET /reports/sla-summary` (จัดกลุ่ม `group_by` = buil
 | `B` ยังรอคำตอบ | **1** — ข้อ 19 (ทำเป็น 401 ไว้ก่อน) |
 | รวม | **252** |
 
+## สัปดาห์ 6 — comments, mutation check รอบสุดท้าย, Swagger, seed เดโม
+
+### comments (5 พ.ย. 2569)
+
+ของเดิมมีแค่ model `TicketComment` (`app/models/ticket.py`) ไม่มี endpoint และไม่มีเทส — ทุกข้อเป็นเคสใหม่
+
+| เรื่อง | เทส | หมายเหตุ |
+|---|---|---|
+| ผู้พัก / ช่างเจ้าของงาน / Staff เขียนได้ · ทุกคนที่เห็นใบอ่านได้ เรียงเก่าไปใหม่ พร้อมชื่อและบทบาท | `comments.e2e-spec.ts` | DESIGN 4.2, 7 |
+| นักศึกษาไม่เห็นความเห็นภายใน · ส่ง `is_internal` ได้ 403 ไม่มีอะไรถูกบันทึก | `comments.e2e-spec.ts` (2 เคส) | DESIGN 4.3 · `TicketPolicy.canSeeInternal` ตัวเดียวทั้งอ่านและเขียน |
+| มองไม่เห็นใบ → 404 ทั้งอ่านและเขียน | `comments.e2e-spec.ts` | กฎข้อ 3 ชั้น 0 |
+| ใบส่วนกลาง นักศึกษาทุกอาคารเขียนได้ | `comments.e2e-spec.ts` | กฎข้อ 3 — ห้ามเงื่อนไขอาคารเดียวกัน |
+| ผู้แจ้งที่ย้ายห้องแล้ว อ่านได้แต่เขียนไม่ได้ (403) | `comments.e2e-spec.ts` | ownership ของ comment = ผู้พัก ไม่ใช่ผู้แจ้ง (DESIGN 4.2) |
+| ใบที่จบแล้วยังเขียนได้ — ไม่มี 409 | `comments.e2e-spec.ts` | DESIGN 7 ไม่มี 409 ของ comment |
+| body ว่าง / ช่องว่างล้วน / เกิน 2000 / `is_internal` ไม่ใช่ boolean → 400 · ความเห็นที่ลบแบบ soft ไม่ถูกส่ง | `comments.e2e-spec.ts` (5 เคส) | |
+| `comment` เข้า `UiAction` — ปุ่มที่ส่งมากดได้จริง ปุ่มที่ไม่ส่งได้ 403/404 | `ticket-actions.e2e-spec.ts` (contract เดิม) · `ticket-policy.service.spec.ts` | DESIGN 7.1 · เคสที่ตรึงรายการ actions ไว้ (policy spec, `scan.e2e-spec.ts`) เพิ่ม `comment` ตามที่ DESIGN กำหนดให้เข้ามาสัปดาห์นี้ |
+| หน้าจอ: ช่างเขียนภายใน / ปกติ · นักศึกษาไม่เห็นข้อความภายในและไม่มีสวิตช์ ตอบกลับได้ · Staff เห็นครบ | `web/e2e/12-comments.spec.ts` (1 เคส + screenshot 2 ภาพ) | |
+
 ## TODO ที่เลื่อนออกไป (อนุมัติ 6 ต.ค. 2569)
 
 | เรื่อง | ทำเมื่อไหร่ | หมายเหตุ |
