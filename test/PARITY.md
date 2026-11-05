@@ -892,6 +892,45 @@ endpoint: `GET /reports/sla-summary` (จัดกลุ่ม `group_by` = buil
 |---|---|---|
 | Staff เลือกห้อง → สติกเกอร์ครบทุกชิ้น รูป QR โหลดสำเร็จ (200 image/png) · โหมดพิมพ์ซ่อนเมนู · ส่วนกลางมีแต่ครุภัณฑ์ส่วนกลาง · คนที่ไม่ใช่ Staff ถูกพากลับ | `web/e2e/13-qr.spec.ts` (3 เคส + screenshot 3 ภาพ) | ของเดิมมี `/qr/sheet` ฝั่งเซิร์ฟเวอร์ — ของใหม่ทำที่หน้าเว็บจาก `GET /assets/:id/qr` (DESIGN 6.8 แก้ 5 พ.ย.) · สิทธิ์ของรูปมีเทสใน `qr.e2e-spec.ts` อยู่แล้ว |
 
+### mutation check รอบสุดท้าย (5 พ.ย. 2569)
+
+ใส่ความผิดทีละข้อด้วยสคริปต์ รันเฉพาะเทสที่เกี่ยว แล้วคืนไฟล์เดิมทุกครั้ง · ผล: **แดงครบ 24 ข้อ**
+
+| # | ความผิดที่ใส่ | เทสที่รัน | ผล |
+|---|---|---|---|
+| D1 | ลบ lock แถวใบ (`pessimistic_write`) | workflow-concurrency | แดง 3/4 |
+| D2 | เช็คแจ้งซ้ำก่อน ownership | tickets | แดง 1 |
+| D3 | ใส่ `closed` ใน `OPEN_STATUSES` | schema-vs-code | แดง 4 |
+| D4 | ปล่อย Staff ยืนยันใบห้องพัก | workflow | แดง 2 |
+| D5 | ให้ช่างไป `closed` ได้ในตาราง `TRANSITIONS` | status-rules (unit) | แดง 1 — e2e ยังเขียวเพราะ `TRANSITION_ONLY_VIA` และ policy ของ `/confirm` กันอีกสองชั้น |
+| D6 | ลืม `deleted_at IS NULL` ในรายงาน | reports | แดง 1 |
+| D7 | บันทึกใบด้วย repository นอกทรานแซกชัน | workflow | แดง — ค้างจนหมดเวลา (บันทึกนอกทรานแซกชันรอ lock ที่ทรานแซกชันตัวเองถือ) |
+| D8 | คิดปี พ.ศ. ด้วย UTC | thai-year (unit) | แดง 1 |
+| D9 | ไม่นับ attempts ของ OTP | auth | แดง 3 |
+| D10 | เลือก policy จากสถานะปลายทาง (`/reopen` → `assign`) | reopen | แดง 18 |
+| D11 | ลบ `FOR UPDATE` แถว users ตอนนับโควตา | tickets | แดง 1 |
+| D12 | ใส่ `cancelled` ใน `OPEN_STATUSES` | schema-vs-code + workflow | แดง 6 |
+| D13 | ตัดเงื่อนไขเข้าห้อง (`canEnterRoom`) | workflow | แดง 1 |
+| D14 | แบ่งเดือนด้วย UTC | reports | แดง 28 |
+| T1 | ลบ `TRANSITION_ONLY_VIA` resolved→assigned | workflow | แดง 1 |
+| T2 | เอา pending_parts ออกจาก `NOTE_REQUIRED` | workflow | แดง 2 |
+| T3 | ไม่ล้าง `disputed_at` ตอน reopen | reopen | แดง 1 |
+| T4 | ไม่ล้าง `disputed_at` ตอน resolved รอบใหม่ | workflow | แดง 1 |
+| T5 | ตัดการเช็คซ้ำหลัง lock ของ job ปิดอัตโนมัติ | auto-close | แดง 2 |
+| T6 | `/scan` `/assets` ส่ง open_ticket ไม่ผ่าน `canSee` | scan | แดง 3 |
+| T7 | ตัวนับรอมอบหมายต่างจาก query param | queue | แดง 2 |
+| T8 | `allowedActions` ส่งปุ่มที่ไม่ควรมี | ticket-actions | แดง 16 |
+| T9 | ลบ `ENDPOINT_ONLY_PAIRS` ของ `/reopen` | status-rules (unit) | แดง 1 |
+| T10 | นับ pending_parts เข้าเวลาซ่อม | reports | แดง 1 |
+
+ของสัปดาห์ 6 ที่ทำตอนเขียน (comments 4 ข้อ, หน้าเว็บ 3 ข้อ, seed 1 ข้อ, Swagger 2 ข้อ, user:demo 2 ข้อ) แดงครบ — อยู่ในหัวข้อของแต่ละเรื่องข้างบน
+
+### ลองบนเครื่องใหม่ (5 พ.ย. 2569)
+
+clone จาก GitHub (`9eb51e2`) ไม่มี node_modules · Docker project แยก (`serverside-check`) volume ใหม่ พอร์ตแยก — DB ที่ใช้งานจริงไม่ถูกแตะ
+`npm ci` → migration → seed → lint → web:lint → web:typecheck → web:build → unit **83** → test:e2e **649** → web:e2e **50** → build + start (`/health` `/docs` `/app` = 200) ผ่านทั้งหมด
+รอบแรก web:e2e ตก 1 เคส (`12-comments` อ่านรายการก่อนโหลดเสร็จ — เทสพลาดเอง ไม่ใช่ระบบ) แก้แล้วรันซ้ำผ่าน 50/50
+
 ## TODO ที่เลื่อนออกไป (อนุมัติ 6 ต.ค. 2569)
 
 | เรื่อง | ทำเมื่อไหร่ | หมายเหตุ |

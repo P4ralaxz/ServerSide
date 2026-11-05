@@ -61,6 +61,8 @@ test('ช่างเขียนความเห็นภายในแล�
   await signIn(staffPage, await sessionFor(request, STAFF));
   await staffPage.goto(`/app/queue?ticket=${job.id}`);
   // ใบนี้อาจมีความเห็นจาก seed อยู่ก่อน — ตรวจแค่ว่าสามข้อความของเทสอยู่ท้ายสุดตามลำดับ
+  // รอให้รายการโหลดก่อน: allTextContents ไม่รอเอง ถ้าอ่านตอนยังโหลดอยู่จะได้รายการว่าง
+  await expect(comments(staffPage).getByText(REPLY)).toBeVisible();
   const texts = await comments(staffPage).getByRole('listitem').allTextContents();
   expect(texts.slice(-3).map((t) => [INTERNAL, PUBLIC, REPLY].findIndex((m) => t.includes(m)))).toEqual([0, 1, 2]);
   await staffPage.context().close();
