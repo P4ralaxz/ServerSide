@@ -27,8 +27,11 @@ test('ช่างเขียนความเห็นภายในแล�
   request,
   baseURL,
 }) => {
+  // ใบห้องพักที่มีช่างแล้ว หยิบจากท้ายรายการ — เทสอื่นหยิบจากต้นรายการแล้วเปลี่ยนสถานะไป
   const job = await pickOnce(request, 'comments', (all) =>
-    all.find((t) => t.status === 'in_progress' && t.room_id !== null),
+    [...all]
+      .reverse()
+      .find((t) => ['assigned', 'in_progress', 'pending_parts'].includes(t.status) && t.room_id !== null),
   );
   const tech = await technicianOf(request, job);
   const student = await studentOfRoom(request, job.room_id!);
@@ -57,11 +60,9 @@ test('ช่างเขียนความเห็นภายในแล�
   const staffPage = await newPage(browser, baseURL!, { width: 1280, height: 860, scheme: 'light' });
   await signIn(staffPage, await sessionFor(request, STAFF));
   await staffPage.goto(`/app/queue?ticket=${job.id}`);
-  await expect(comments(staffPage).getByRole('listitem')).toHaveText([
-    new RegExp(INTERNAL),
-    new RegExp(PUBLIC),
-    new RegExp(REPLY),
-  ]);
+  // ใบนี้อาจมีความเห็นจาก seed อยู่ก่อน — ตรวจแค่ว่าสามข้อความของเทสอยู่ท้ายสุดตามลำดับ
+  const texts = await comments(staffPage).getByRole('listitem').allTextContents();
+  expect(texts.slice(-3).map((t) => [INTERNAL, PUBLIC, REPLY].findIndex((m) => t.includes(m)))).toEqual([0, 1, 2]);
   await staffPage.context().close();
 });
 

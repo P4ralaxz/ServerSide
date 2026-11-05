@@ -1,7 +1,9 @@
 import { DataSource } from 'typeorm';
 import { thaiBuddhistYear } from '../../src/common/time/thai-year';
 import { TicketStatus, UserRole } from '../../src/domain/enums';
+import { AUTO_URGENT_REPORT_COUNT } from '../../src/domain/limits';
 import { canTransition, OPEN_STATUSES } from '../../src/domain/status-rules';
+import { TicketPolicy } from '../../src/modules/tickets/ticket-policy.service';
 import { seed } from '../../src/database/seed/seed';
 import { openTestDb, truncateAll } from '../setup/truncate';
 
@@ -259,6 +261,88 @@ describe('seed', () => {
       `SELECT count(*) AS n FROM tickets WHERE description IS NULL OR btrim(description) = ''`,
     );
     expect(Number(row.n)).toBe(0);
+  });
+
+  // เดโม same-issue (สัปดาห์ 6): กดสดอีกคนเดียวแล้วใบเป็นด่วนมาก
+  it('มีใบส่วนกลางเปิดอยู่ที่ report_count เท่าเกณฑ์พอดี ยังไม่ด่วนมาก และยังมีนักศึกษาที่ไม่ได้กด', async () => {
+    const rows: { id: string; priority: string }[] = await ds.query(
+      `SELECT t.id, t.priority FROM tickets t
+        WHERE t.scope = 'common_area' AND t.status = ANY($1) AND t.report_count = $2`,
+      [[...OPEN_STATUSES], AUTO_URGENT_REPORT_COUNT],
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0].priority).not.toBe('urgent');
+    const [left]: { n: string }[] = await ds.query(
+      `SELECT count(*) AS n FROM users u
+        WHERE u.role = 'student' AND u.deleted_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM ticket_reporters r WHERE r.ticket_id = $1 AND r.user_id = u.id)`,
+      [rows[0].id],
+    );
+    expect(Number(left.n)).toBeGreaterThan(0);
+  });
+
+  it('ใบที่คนแจ้งเกินเกณฑ์: ด่วนมาก มี auto_escalate ครั้งเดียวไม่มีผู้กด ตรงกับคนที่ทำให้เกินเกณฑ์ และทุกคนที่กดเป็นนักศึกษา', async () => {
+    const [t]: { id: string; priority: string }[] = await ds.query(
+      `SELECT id, priority FROM tickets WHERE report_count > $1`,
+      [AUTO_URGENT_REPORT_COUNT],
+    );
+    expect(t.priority).toBe('urgent');
+    const esc: { actor_id: string | null; detail: { report_count: number }; created_at: Date }[] = await ds.query(
+      `SELECT actor_id, detail, created_at FROM ticket_audit_logs WHERE ticket_id = $1 AND action = 'auto_escalate'`,
+      [t.id],
+    );
+    expect(esc).toHaveLength(1);
+    expect(esc[0].actor_id).toBeNull();
+    expect(esc[0].detail.report_count).toBe(AUTO_URGENT_REPORT_COUNT + 1);
+    const [tipping]: { created_at: Date }[] = await ds.query(
+      `SELECT created_at FROM ticket_audit_logs
+        WHERE ticket_id = $1 AND action = 'same_issue' AND (detail->>'report_count')::int = $2`,
+      [t.id, AUTO_URGENT_REPORT_COUNT + 1],
+    );
+    expect(tipping.created_at.getTime()).toBe(esc[0].created_at.getTime());
+    const roles: { role: string }[] = await ds.query(
+      `SELECT DISTINCT u.role FROM ticket_reporters r JOIN users u ON u.id = r.user_id WHERE r.ticket_id = $1`,
+      [t.id],
+    );
+    expect(roles).toEqual([{ role: 'student' }]);
+  });
+
+  it('ความเห็น: มีทั้งปกติและภายใน · ผู้เขียนมีสิทธิ์เขียนในใบนั้นตาม TicketPolicy · นักศึกษาไม่เขียนภายใน · เวลาอยู่ในช่วงของใบ', async () => {
+    const policy = new TicketPolicy();
+    const rows: {
+      is_internal: boolean;
+      created_at: Date;
+      t_created: Date;
+      role: UserRole;
+      author_id: string;
+      author_room: string | null;
+      scope: 'room' | 'common_area';
+      room_id: string | null;
+      reporter_id: string;
+      assigned_to: string | null;
+      status: TicketStatus;
+    }[] = await ds.query(
+      `SELECT c.is_internal, c.created_at, t.created_at AS t_created, u.role, u.id AS author_id, u.room_id AS author_room,
+              t.scope, t.room_id, t.reporter_id, t.assigned_to, t.status
+         FROM ticket_comments c JOIN tickets t ON t.id = c.ticket_id JOIN users u ON u.id = c.author_id`,
+    );
+    expect(new Set(rows.map((r) => r.is_internal))).toEqual(new Set([true, false]));
+    for (const r of rows) {
+      const ticket = {
+        scope: r.scope,
+        roomId: r.room_id,
+        reporterId: r.reporter_id,
+        assignedTo: r.assigned_to,
+        status: r.status,
+        permissionToEnter: false,
+        scheduledAt: null,
+      };
+      const author = { id: r.author_id, role: r.role, roomId: r.author_room };
+      expect(policy.can('comment', author, ticket)).toBe(true);
+      if (r.is_internal) expect(policy.canSeeInternal(author)).toBe(true);
+      expect(r.created_at.getTime()).toBeGreaterThan(r.t_created.getTime());
+      expect(r.created_at.getTime()).toBeLessThanOrEqual(now.getTime());
+    }
   });
 
   it('ticket_counters ตามทันเลขใบสูงสุดของปี พ.ศ. นั้น', async () => {

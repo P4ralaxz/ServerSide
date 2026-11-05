@@ -4,6 +4,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { DataSource, EntityManager } from 'typeorm';
 import { formatTicketNo, thaiBuddhistYear } from '../../common/time/thai-year';
 import { AuditAction, CloseReason, TicketPriority, TicketScope, TicketStatus, UserRole } from '../../domain/enums';
+import { AUTO_URGENT_REPORT_COUNT } from '../../domain/limits';
 import { isOpenStatus } from '../../domain/status-rules';
 import { dataSourceOptions } from '../data-source';
 
@@ -24,6 +25,12 @@ const mulberry32 = (seed: number) => () => {
 };
 
 type Who = 'reporter' | 'staff' | 'tech' | 'system';
+
+interface SeedComment {
+  by: Exclude<Who, 'system'>;
+  body: string;
+  internal?: boolean;
+}
 type Range = [min: number, max: number];
 
 interface Step {
@@ -39,6 +46,10 @@ interface Scenario {
   steps: Step[];
   tail?: Range; // ชั่วโมงจากขั้นสุดท้ายถึงตอนนี้ — ไม่ระบุ = กระจายทั่วช่วง 30 วัน
   disputed?: boolean;
+  // จำนวนคนที่แจ้งเรื่องเดียวกันรวมผู้แจ้ง (same-issue) — เกิน AUTO_URGENT_REPORT_COUNT แล้วระบบยกเป็น urgent ให้
+  crowd?: number;
+  // ความเห็นหลังขั้นสุดท้าย — เดโมเปิดใบแล้วเห็นการคุยกันจริง รวมความเห็นภายในที่ผู้พักไม่เห็น
+  comments?: SeedComment[];
 }
 
 const assign: Step = { to: 'assigned', by: 'staff', hours: [1, 12] };
@@ -85,7 +96,17 @@ const SCENARIOS: Scenario[] = [
   { scope: 'room', count: 2, steps: [assign], tail: [1, 30] },
   { scope: 'room', count: 1, steps: [assign, start], tail: [1, 30] },
   { scope: 'common_area', count: 1, steps: [assign, start], tail: [1, 30] },
-  { scope: 'room', count: 1, steps: [assign, start, parts], tail: [5, 60] },
+  {
+    scope: 'room',
+    count: 1,
+    steps: [assign, start, parts],
+    tail: [5, 60],
+    comments: [
+      { by: 'tech', body: 'สั่งอะไหล่แล้ว ร้านแจ้งว่าได้ของภายใน 3 วัน' },
+      { by: 'tech', body: 'อะไหล่ราคา 850 บาท ใช้งบซ่อมบำรุงของหอ', internal: true },
+      { by: 'reporter', body: 'รับทราบครับ ระหว่างนี้ใช้ได้ปกติ' },
+    ],
+  },
   { scope: 'room', count: 1, steps: [assign, start, resolve], tail: [2, 40] },
   { scope: 'common_area', count: 1, steps: [assign, start, resolve], tail: [2, 40] },
   // เลย 72 ชม. แล้วแต่ยังไม่ถูกปิด — ไว้กดโชว์ POST /admin/jobs/auto-close/run
@@ -96,8 +117,21 @@ const SCENARIOS: Scenario[] = [
   // Staff ปิดทั้งที่ยังมีคนแย้ง — รายงานต้องแยกกรณีนี้ออกมาได้ (disputed_at ไม่ถูกล้างตอน confirm)
   { scope: 'common_area', count: 1, steps: [assign, start, resolve, confirm('common_area')], disputed: true },
   // ถูกส่งกลับแล้วยังรอช่างอยู่ — กลุ่ม "ถูกส่งกลับ" ของช่างและตัวกรอง reopened=true ของ Staff ต้องมีของ
-  { scope: 'room', count: 1, steps: [assign, start, resolve, reopen('room')], tail: [1, 20] },
+  {
+    scope: 'room',
+    count: 1,
+    steps: [assign, start, resolve, reopen('room')],
+    tail: [1, 20],
+    comments: [
+      { by: 'reporter', body: 'เป็นอีกแล้วตอนกลางคืน ถ่ายคลิปไว้ให้ดูได้ครับ' },
+      { by: 'staff', body: 'ส่งกลับให้ช่างคนเดิมแล้ว ถ้าเป็นอีกรอบจะเปลี่ยนเครื่องใหม่', internal: true },
+    ],
+  },
   { scope: 'common_area', count: 1, steps: [assign, start, resolve, reopen('common_area')], tail: [1, 20] },
+  // เดโม same-issue: ขาดอีกคนเดียวจะถูกยกเป็นด่วนมาก — นักศึกษาที่ยังไม่ได้กดกดสดตอนนำเสนอได้ (DESIGN 6.5)
+  { scope: 'common_area', count: 1, steps: [], tail: [12, 24], crowd: AUTO_URGENT_REPORT_COUNT },
+  // ใบที่ระบบยกเป็นด่วนมากไปแล้ว — มี audit auto_escalate ที่ไม่มีผู้กด
+  { scope: 'common_area', count: 1, steps: [assign], tail: [12, 24], crowd: AUTO_URGENT_REPORT_COUNT + 2 },
 ];
 
 interface Asset {
@@ -333,7 +367,10 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
       audits: { action: AuditAction; actorId: string | null; detail: Record<string, unknown>; at: Date }[];
       // ใบที่แจ้งพร้อมกันในคำขอเดียวใช้ค่าเดียวกัน — ไม่ระบุ = ใบเดี่ยว
       batchId: string | null;
-      secondReporter: Person | null;
+      // คนที่กดเจอปัญหาเดียวกันหลังผู้แจ้ง เรียงตามเวลา — report_count = 1 + จำนวนนี้
+      sameIssue: { user: Person; at: Date }[];
+      escalatedAt: Date | null;
+      comments: { authorId: string; body: string; internal: boolean; at: Date }[];
     }
 
     // ครุภัณฑ์ที่มีใบเปิดอยู่แล้ว — idx_tickets_asset_open ยอมให้มีได้ใบเดียว
@@ -352,7 +389,9 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
         let asset: Asset | undefined;
         for (let tries = 0; !asset; tries++) {
           if (tries > 200) throw new Error('ครุภัณฑ์ว่างไม่พอสำหรับ scenario ที่กำหนด');
-          reporter = sc.scope === 'room' ? pick(housed) : pick(!cancelled && rng() < 0.2 ? staff : students);
+          // same-issue กดได้เฉพาะนักศึกษา (DESIGN 12.1) — ใบที่มีคนแจ้งตามเยอะจึงให้นักศึกษาเป็นผู้แจ้งแรกด้วย
+          reporter =
+            sc.scope === 'room' ? pick(housed) : pick(!cancelled && !sc.crowd && rng() < 0.2 ? staff : students);
           const pool = sc.scope === 'room' ? assets.filter((a) => a.roomId === reporter.roomId) : commonAssets;
           const candidate = pick(pool);
           if (!needsFree || !busy.has(candidate.id)) asset = candidate;
@@ -385,8 +424,12 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
           logs: [{ from: null, to: 'open', actorId: reporter!.id, note: null, at }],
           audits: [],
           batchId: null,
-          secondReporter: null,
+          sameIssue: [],
+          escalatedAt: null,
+          comments: [],
         };
+        // ใบเดโม same-issue เริ่มที่ปกติ — ให้เห็นว่าระบบเป็นคนยกเป็นด่วนมาก ไม่ใช่ Staff ตั้งไว้แต่แรก
+        if (sc.crowd) t.priority = 'normal';
 
         // Staff ปรับความด่วนหลังอ่านเรื่อง — ใบที่ไม่ใช่ normal ต้องมีร่องรอยว่าใครปรับ ไม่ใช่โผล่มาเอง
         if (t.priority !== 'normal') {
@@ -452,9 +495,33 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
           t.disputedAt = t.closedAt
             ? new Date((t.resolvedAt.getTime() + t.closedAt.getTime()) / 2)
             : new Date(t.resolvedAt.getTime() + 5 * HOUR);
-          t.secondReporter = students.find((s) => s.id !== t.reporter.id) ?? null;
+          const disputer = students.find((s) => s.id !== t.reporter.id);
+          if (disputer) t.sameIssue.push({ user: disputer, at: t.disputedAt });
           if (!t.closedAt) t.updatedAt = t.disputedAt;
         }
+
+        if (sc.crowd) {
+          // นักศึกษาคนอื่นทยอยกดหลังแจ้ง คนละครั้ง (ticket_reporters PK) — ห้ามเกินเวลาปัจจุบัน
+          const others = students.filter((s) => s.id !== t.reporter.id).slice(0, sc.crowd - 1);
+          others.forEach((user, k) => {
+            const at = new Date(t.createdAt.getTime() + (k + 1) * 0.15 * HOUR);
+            t.sameIssue.push({ user, at });
+            // คนที่ทำให้ report_count เกินเกณฑ์ → ระบบยกเป็น urgent ครั้งเดียว (DESIGN 6.5)
+            if (k + 2 > AUTO_URGENT_REPORT_COUNT && t.escalatedAt === null) {
+              t.escalatedAt = at;
+              t.priority = 'urgent';
+            }
+          });
+        }
+
+        // ความเห็นวางต่อจากเหตุการณ์สุดท้ายของใบ ทีละ 15 นาที และไม่เลยเวลาปัจจุบัน
+        (sc.comments ?? []).forEach((c, k, all) => {
+          const at = new Date(
+            Math.min(t.updatedAt.getTime() + (k + 1) * 0.25 * HOUR, now.getTime() - (all.length - k) * 60_000),
+          );
+          const authorId = c.by === 'reporter' ? t.reporter.id : c.by === 'tech' ? t.assignedTo! : staff[0].id;
+          t.comments.push({ authorId, body: c.body, internal: c.internal ?? false, at });
+        });
         planned.push(t);
       }
     }
@@ -490,7 +557,9 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
           logs: [{ from: null, to: 'open', actorId: batchReporter.id, note: null, at }],
           audits: [],
           batchId,
-          secondReporter: null,
+          sameIssue: [],
+          escalatedAt: null,
+          comments: [],
         });
       }
     }
@@ -522,7 +591,7 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
           t.priority,
           t.asset.title,
           t.asset.symptom, // อาการบังคับที่ API (DESIGN 7.7) — ใบเดโมต้องมีเหมือนใบที่สร้างจากหน้าจอ
-          t.secondReporter ? 2 : 1,
+          1 + t.sameIssue.length,
           t.reopenCount,
           t.permissionToEnter,
           t.scheduledAt,
@@ -556,15 +625,29 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
         t.reporter.id,
         t.createdAt,
       ]);
-      if (t.secondReporter && t.disputedAt) {
+      // แถวเดียวกับที่ POST /same-issue เขียน: ticket_reporters + audit same_issue (+ auto_escalate ไม่มีผู้กด)
+      for (const [k, s] of t.sameIssue.entries()) {
         await m.query(`INSERT INTO ticket_reporters (ticket_id, user_id, created_at) VALUES ($1, $2, $3)`, [
           t.id,
-          t.secondReporter.id,
-          t.disputedAt,
+          s.user.id,
+          s.at,
         ]);
         await m.query(
           `INSERT INTO ticket_audit_logs (ticket_id, action, actor_id, detail, created_at) VALUES ($1, 'same_issue', $2, $3, $4)`,
-          [t.id, t.secondReporter.id, JSON.stringify({ report_count: 2 }), t.disputedAt],
+          [t.id, s.user.id, JSON.stringify({ report_count: k + 2 }), s.at],
+        );
+        if (s.at === t.escalatedAt) {
+          await m.query(
+            `INSERT INTO ticket_audit_logs (ticket_id, action, actor_id, detail, created_at) VALUES ($1, 'auto_escalate', NULL, $2, $3)`,
+            [t.id, JSON.stringify({ from: 'normal', to: 'urgent', report_count: k + 2 }), s.at],
+          );
+        }
+      }
+
+      for (const c of t.comments) {
+        await m.query(
+          `INSERT INTO ticket_comments (ticket_id, author_id, body, is_internal, created_at) VALUES ($1, $2, $3, $4, $5)`,
+          [t.id, c.authorId, c.body, c.internal, c.at],
         );
       }
     }
