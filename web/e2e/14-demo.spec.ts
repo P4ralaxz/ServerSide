@@ -4,56 +4,66 @@ import { rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { AssetListItemView, BuildingView, RoomView, TicketView } from '../src/api/schema.gen';
 import { newPage } from './screens';
-import { apiGet, codeFor, rememberSession, sessionFor, STAFF, type Session } from './support';
+import { apiGet, codeFor, rememberSession, sessionFor, type Session } from './support';
 
 // เส้นทางเดโมตาม docs/demo.md ลำดับเดียวกับที่นำเสนอ (สัปดาห์ 6) — ถ้าไฟล์นี้ผ่าน แปลว่าไล่ตามเอกสารได้จนจบ
 // โดยไม่ต้องแก้ข้อมูลด้วยมือ · seed ใหม่ก่อนเริ่ม เพราะไฟล์ก่อนหน้าเปลี่ยนสถานะใบไปแล้ว
 // แต่ละขั้นเป็นเทสของตัวเอง (serial) — ขั้นไหนพังจะเห็นทันทีว่าตรงกับขั้นไหนในเอกสาร
+// seed แบบบัญชีทีม (npm run seed -- <อีเมล 3 คน>) แบบเดียวกับวันนำเสนอ และเดินด้วยชุดบัญชีของคนคุมจอคนเดียว
 
 const MOBILE = { width: 360, height: 780, scheme: 'light' } as const;
 const DESK = { width: 1280, height: 860, scheme: 'light' } as const;
 
-const ADMIN = 'demo.admin@kmitl.ac.th';
-const REPORTER = 'demo.s0005@kmitl.ac.th'; // ห้อง D1-303 — ห้องที่ยังไม่มีใบเปิด
-const ROOMMATE = 'demo.s0006@kmitl.ac.th';
-const OUTSIDER = 'demo.s0001@kmitl.ac.th'; // ห้อง D1-301
-const LATE_STUDENT = 'demo.s0010@kmitl.ac.th'; // ยังไม่ได้กดเจอปัญหาเดียวกันในใบที่ขาดอีกคนเดียว
-const PARTS_STUDENT = 'demo.s0004@kmitl.ac.th'; // ห้อง D1-302 ที่มีใบรออะไหล่
-const TECH = 'demo.tech1@kmitl.ac.th';
+const OWNERS = ['67070017@kmitl.ac.th', '67070053@kmitl.ac.th', '67070097@kmitl.ac.th'];
+// คนคุมจอ — ชุดของคนอื่นในทีมเดินได้เหมือนกัน (เทสใน seed.e2e-spec.ts) ต่างกันแค่เลขห้อง
+const tag = (t: string) => OWNERS[0].replace('@', `+${t}@`);
+const ADMIN = tag('admin1');
+const STAFF = tag('staff1');
+const REPORTER = tag('student1'); // ห้อง D1-301
+const ROOMMATE = tag('student2');
+const OTHER_ROOM = tag('student3'); // ห้อง D2-301 · ไม่เคยแจ้งหรือกดอะไร — เป็นทั้งคนห้องอื่นและคนที่ 11
+const TECH = tag('tech1');
 const TECH_NAME = 'สมชาย ใจดี';
+const ROOM = 'D1-301';
 const SYMPTOM = 'แอร์มีน้ำหยดใส่โต๊ะตอนเปิดเกิน 1 ชั่วโมง';
 
 test.describe.serial('เดโมตาม docs/demo.md', () => {
   let staff: Session;
   let acQr: string;
-  let elecCommonQr: string;
+  let crowdQr: string;
   let ticket: TicketView;
 
   test.beforeAll(async ({ request }) => {
-    execSync('npx ts-node test/ui-db.ts', { cwd: resolve('..'), stdio: 'inherit' });
+    execSync('npx ts-node test/ui-db.ts', {
+      cwd: resolve('..'),
+      stdio: 'inherit',
+      env: { ...process.env, SEED_OWNERS: OWNERS.join(',') },
+    });
     // seed ใหม่ = ผู้ใช้ id ใหม่ — token ที่เทสก่อนหน้าจำไว้ใช้ไม่ได้แล้ว
     for (const f of ['tokens.json', 'picks.json', 'awaiting.json']) rmSync(resolve('e2e/.tmp', f), { force: true });
     staff = await sessionFor(request, STAFF);
     const buildings = await apiGet<BuildingView[]>(request, staff, '/buildings');
     const d1 = buildings.find((b) => b.code === 'D1')!;
-    const d2 = buildings.find((b) => b.code === 'D2')!;
     const room = (await apiGet<RoomView[]>(request, staff, '/rooms')).find(
-      (r) => r.building_id === d1.id && r.room_no === '303',
+      (r) => r.building_id === d1.id && r.room_no === '301',
     )!;
     const roomAssets = await apiGet<AssetListItemView[]>(request, staff, `/assets?room_id=${room.id}`);
-    acQr = roomAssets.find((a) => a.asset_code === 'D1-303-AC')!.qr_token!;
-    const common = await apiGet<AssetListItemView[]>(request, staff, `/assets?building_id=${d2.id}&common_area=true`);
-    elecCommonQr = common.find((a) => a.asset_code === 'D2-CM-G-ELEC')!.qr_token!;
+    acQr = roomAssets.find((a) => a.asset_code === `${ROOM}-AC`)!.qr_token!;
+    // ใบส่วนกลางที่มีคนแจ้งแล้ว 10 คน — อาคาร / ชิ้นมาจาก seed ไม่ตายตัว จึงหาจากจำนวนคน
+    const open = await apiGet<TicketView[]>(request, staff, '/tickets?scope=common_area&limit=100');
+    const crowd = open.find((t) => t.report_count === 10 && t.priority !== 'urgent')!;
+    expect(crowd, 'seed ต้องมีใบส่วนกลางที่ขาดอีกคนเดียวจะเป็นด่วนมาก').toBeDefined();
+    crowdQr = (await apiGet<AssetListItemView>(request, staff, `/assets/${crowd.asset_id}`)).qr_token!;
   });
 
-  test('1. Staff พิมพ์ QR ของห้อง D1-303 จากหน้าเว็บ', async ({ browser, request, baseURL }) => {
+  test('1. Staff พิมพ์ QR ของห้อง D1-301 จากหน้าเว็บ', async ({ browser, request, baseURL }) => {
     const page = await newPage(browser, baseURL!, DESK, await sessionFor(request, STAFF));
     await page.goto('/app/qr');
-    await page.getByLabel('ห้อง / ส่วนกลาง').selectOption({ label: 'D1 ห้อง 303' });
+    await page.getByLabel('ห้อง / ส่วนกลาง').selectOption({ label: 'D1 ห้อง 301' });
     const sticker = page
-      .getByRole('list', { name: 'QR ของ D1 ห้อง 303' })
+      .getByRole('list', { name: 'QR ของ D1 ห้อง 301' })
       .getByRole('listitem')
-      .filter({ hasText: 'D1-303-AC' });
+      .filter({ hasText: `${ROOM}-AC` });
     await expect(sticker.getByRole('img')).toBeVisible();
     await page.context().close();
   });
@@ -104,11 +114,11 @@ test.describe.serial('เดโมตาม docs/demo.md', () => {
         data: { items: [{ asset_id: ticket.asset_id, title: 'แอร์', description: 'ไม่เย็น' }] },
       });
     expect((await post(ROOMMATE)).status()).toBe(409);
-    const other = await post(OUTSIDER);
+    const other = await post(OTHER_ROOM);
     expect(other.status()).toBe(403);
     expect(await other.text()).not.toContain(ticket.ticket_no);
 
-    const outsider = await newPage(browser, baseURL!, MOBILE, await sessionFor(request, OUTSIDER));
+    const outsider = await newPage(browser, baseURL!, MOBILE, await sessionFor(request, OTHER_ROOM));
     await outsider.goto(`/app/scan/${acQr}`);
     await expect(outsider.getByText('แจ้งซ่อมได้เฉพาะผู้พักห้องนั้น')).toBeVisible();
     await expect(outsider.getByText(ticket.ticket_no)).toHaveCount(0);
@@ -186,7 +196,10 @@ test.describe.serial('เดโมตาม docs/demo.md', () => {
   });
 
   test('9. ใบรออะไหล่: ช่างเห็นความเห็นภายใน · ผู้พักไม่เห็น', async ({ browser, request, baseURL }) => {
-    const [parts] = await apiGet<TicketView[]>(request, staff, '/tickets?status=pending_parts&scope=room');
+    // ใบรออะไหล่ในห้องของคนคุมจอ (seed วางไว้ให้ทุกคนในทีม) — งานของ +tech1 คนเดียวกัน
+    const parts = (await apiGet<TicketView[]>(request, staff, '/tickets?status=pending_parts&scope=room')).find(
+      (t) => t.asset.asset_code === `${ROOM}-LIGHT`,
+    )!;
     const internal = 'อะไหล่ราคา 850 บาท';
     const techPage = await newPage(browser, baseURL!, MOBILE, await sessionFor(request, TECH));
     await techPage.goto('/app/jobs');
@@ -197,18 +210,18 @@ test.describe.serial('เดโมตาม docs/demo.md', () => {
     await expect(techPage.getByRole('region', { name: 'ความเห็น' })).toContainText(internal);
     await techPage.context().close();
 
-    const student = await newPage(browser, baseURL!, MOBILE, await sessionFor(request, PARTS_STUDENT));
+    const student = await newPage(browser, baseURL!, MOBILE, await sessionFor(request, REPORTER));
     await student.goto(`/app/tickets/${parts.id}`);
     const box = student.getByRole('region', { name: 'ความเห็น' });
-    await expect(box).toContainText('สั่งอะไหล่แล้ว');
+    await expect(box).toContainText('สั่งหลอดไฟแล้ว');
     await expect(box).not.toContainText(internal);
     await student.context().close();
   });
 
   test('10. คนที่ 11 กดเจอปัญหาเดียวกัน → ระบบยกเป็นด่วนมาก', async ({ browser, request, baseURL }) => {
     const urgentBefore = (await apiGet<TicketView[]>(request, staff, '/tickets?priority=urgent&limit=100')).length;
-    const page = await newPage(browser, baseURL!, MOBILE, await sessionFor(request, LATE_STUDENT));
-    await page.goto(`/app/scan/${elecCommonQr}`);
+    const page = await newPage(browser, baseURL!, MOBILE, await sessionFor(request, OTHER_ROOM));
+    await page.goto(`/app/scan/${crowdQr}`);
     await page.getByRole('button', { name: 'เจอปัญหาเดียวกัน' }).click();
     await expect(page.getByText('คุณกดว่าเจอปัญหาเดียวกันแล้ว')).toBeVisible();
     await page.context().close();
