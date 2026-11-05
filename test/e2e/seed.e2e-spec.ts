@@ -10,7 +10,13 @@ import { openTestDb, truncateAll } from '../setup/truncate';
 // seed เขียนตรงลง DB โดยไม่ผ่าน service จึงไม่มีอะไรบังคับให้มันทำตามกฎ นอกจากเทสชุดนี้
 // ถ้า seed ผิดกฎ รายงานตอนเดโมจะแสดงตัวเลขที่ระบบจริงสร้างไม่ได้
 
-describe('seed', () => {
+// กฎชุดเดียวกันต้องจริงทั้ง seed ของเทส (demo.*) และ seed ที่ใช้นำเสนอ (บัญชี +แท็ก ของทีม)
+const OWNERS = ['67070017@kmitl.ac.th', '67070053@kmitl.ac.th', '67070097@kmitl.ac.th'];
+
+describe.each([
+  ['demo.*', [] as string[]],
+  ['บัญชีทีม', OWNERS],
+])('seed (%s)', (_label, owners) => {
   let ds: DataSource;
   // ตรึงเวลา: PRNG ของ seed กำหนดค่าตายตัวอยู่แล้ว เทสจึงได้ข้อมูลชุดเดิมทุกครั้ง
   const now = new Date('2026-10-05T05:00:00Z');
@@ -18,7 +24,7 @@ describe('seed', () => {
   beforeAll(async () => {
     ds = await openTestDb();
     await truncateAll(ds);
-    await seed(ds, now);
+    await seed(ds, { now, owners });
   });
   afterAll(async () => {
     await truncateAll(ds);
@@ -353,5 +359,77 @@ describe('seed', () => {
       [beYear],
     );
     expect(row.last_no).toBe(Number(row.used));
+  });
+});
+
+// เดโมขั้นต่าง ๆ ใน docs/demo.md ต้องทำได้ด้วยบัญชีของคนใดคนหนึ่งในทีม (ใครคุมจอก็ได้)
+describe('seed บัญชีทีม — ชุดของแต่ละคนเดโมครบได้เอง', () => {
+  let ds: DataSource;
+  const now = new Date('2026-11-12T03:00:00Z');
+
+  beforeAll(async () => {
+    ds = await openTestDb();
+    await truncateAll(ds);
+    await seed(ds, { now, owners: OWNERS });
+  });
+  afterAll(async () => {
+    await truncateAll(ds);
+    await ds.destroy();
+  });
+
+  const user = async (email: string) =>
+    (
+      await ds.query(
+        `SELECT u.id, u.role, b.code || '-' || r.room_no AS room
+           FROM users u LEFT JOIN rooms r ON r.id = u.room_id LEFT JOIN buildings b ON b.id = r.building_id
+          WHERE u.email = $1`,
+        [email],
+      )
+    )[0] as { id: string; role: UserRole; room: string | null } | undefined;
+
+  it('ไม่มีบัญชี demo.* และแต่ละคนได้ครบ 11 บัญชีตามบทบาท', async () => {
+    expect((await ds.query(`SELECT 1 FROM users WHERE email LIKE 'demo.%'`)).length).toBe(0);
+    for (const [k, owner] of OWNERS.entries()) {
+      const tag = (t: string) => owner.replace('@', `+${t}@`);
+      const no = `30${k + 1}`;
+      expect(await user(tag('admin1'))).toMatchObject({ role: 'admin', room: null });
+      for (const t of ['staff1', 'staff2']) expect(await user(tag(t))).toMatchObject({ role: 'staff', room: null });
+      for (const t of ['tech1', 'tech2']) expect(await user(tag(t))).toMatchObject({ role: 'technician', room: null });
+      expect(await user(tag('student1'))).toMatchObject({ role: 'student', room: `D1-${no}` });
+      expect(await user(tag('student2'))).toMatchObject({ role: 'student', room: `D1-${no}` });
+      expect(await user(tag('student3'))).toMatchObject({ role: 'student', room: `D2-${no}` });
+      for (const t of ['resident1', 'resident2', 'resident3']) expect((await user(tag(t)))?.role).toBe('student');
+    }
+  });
+
+  it('+student3 ไม่เคยแจ้ง ไม่เคยกดเจอปัญหาเดียวกัน และไม่มีความเห็น — เป็น "คนที่ 11" ได้', async () => {
+    const rows: unknown[] = await ds.query(
+      `SELECT 1 FROM users u
+        WHERE u.email LIKE '%+student3@%'
+          AND (EXISTS (SELECT 1 FROM ticket_reporters r WHERE r.user_id = u.id)
+            OR EXISTS (SELECT 1 FROM ticket_comments c WHERE c.author_id = u.id))`,
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it('ห้องของ +student1 มีใบเดียวคือรออะไหล่ของ +tech1 คนเดียวกันพร้อมความเห็นภายใน · แอร์ยังแจ้งได้', async () => {
+    for (const owner of OWNERS) {
+      const tag = (t: string) => owner.replace('@', `+${t}@`);
+      const s1 = (await user(tag('student1')))!;
+      const t1 = (await user(tag('tech1')))!;
+      const tickets: { status: string; assigned_to: string; asset_code: string; id: string }[] = await ds.query(
+        `SELECT t.id, t.status, t.assigned_to, a.asset_code
+           FROM tickets t JOIN assets a ON a.id = t.asset_id JOIN users u ON u.room_id = t.room_id
+          WHERE u.id = $1`,
+        [s1.id],
+      );
+      expect(tickets).toHaveLength(1);
+      expect(tickets[0]).toMatchObject({ status: 'pending_parts', assigned_to: t1.id, asset_code: `${s1.room}-LIGHT` });
+      const internal: unknown[] = await ds.query(
+        `SELECT 1 FROM ticket_comments WHERE ticket_id = $1 AND is_internal AND author_id = $2`,
+        [tickets[0].id, t1.id],
+      );
+      expect(internal).toHaveLength(1);
+    }
   });
 });

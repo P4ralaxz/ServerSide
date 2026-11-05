@@ -44,7 +44,9 @@ const main = async (): Promise<void> => {
   const ds = new DataSource(dataSourceOptions(await ensureUiDatabase(process.env.DATABASE_URL ?? '')));
   await ds.initialize();
   try {
-    console.log(`seed ${UI_DB_NAME} เสร็จ`, await seed(ds));
+    // SEED_OWNERS=a@kmitl.ac.th,b@… → บัญชี +แท็ก ของทีม (เทสเดโมตาม docs/demo.md) · ไม่ตั้ง → demo.*
+    const owners = (process.env.SEED_OWNERS ?? '').split(',').filter(Boolean);
+    console.log(`seed ${UI_DB_NAME} เสร็จ`, await seed(ds, { owners }));
   } finally {
     await ds.destroy();
   }

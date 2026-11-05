@@ -136,6 +136,7 @@ const SCENARIOS: Scenario[] = [
 
 interface Asset {
   id: string;
+  code: string;
   roomId: string | null;
   title: string;
   symptom: string;
@@ -249,6 +250,65 @@ const COMMON_ASSETS = [
   ...GENERAL_ASSETS.map((a) => ({ ...a, note: 'พื้นที่ส่วนกลางทั้งอาคาร' })),
 ];
 
+// ชื่อของบัญชีทีม (ห้องละ 2 ชื่อต่อคนสำหรับ staff / tech, 6 ชื่อต่อคนสำหรับนักศึกษา) — รองรับ MAX_SEED_OWNERS คน
+// ช่างห้ามขึ้นต้นด้วย "ช่าง" เหตุผลเดียวกับชุด demo.* ("ส่งกลับให้ช่างช่าง…")
+const TEAM_TECH = [
+  'สมชาย ใจดี',
+  'ประเสริฐ มั่นคง',
+  'อนุชา ทองดี',
+  'วีระพงษ์ สายไฟ',
+  'ไพโรจน์ แก้วใส',
+  'สุรชัย พลังดี',
+  'บุญมี ทองคำ',
+  'ชาตรี ศรีเมือง',
+  'ณรงค์ ดวงดี',
+  'เกียรติ ภักดี',
+];
+const TEAM_STAFF = [
+  'วิภา สมบูรณ์',
+  'ธีรพงษ์ แสงทอง',
+  'กนกพร ใจงาม',
+  'ปิยะ วงศ์ดี',
+  'สุดา รุ่งเรือง',
+  'อารีย์ ศรีสุข',
+  'มาลี บุญมา',
+  'ศักดิ์ชัย มีสุข',
+  'รัตนา ทองแท้',
+  'วิไล ใจเย็น',
+];
+const TEAM_STUDENT = [
+  'ภูมิ รักเรียน',
+  'ณิชา ใจดี',
+  'ธนกร มั่นเพียร',
+  'พิมพ์ชนก สุขใจ',
+  'กันต์ ศรีวงศ์',
+  'ปาริชาติ ทองดี',
+  'ภาคิน วงศ์ไทย',
+  'ชนิดา แสงทอง',
+  'วรพล ศรีสวัสดิ์',
+  'อรุณี มีสุข',
+  'ศุภกร ใจกล้า',
+  'นภัสสร แก้วมณี',
+  'กฤษดา พึ่งบุญ',
+  'เบญจวรรณ จันทร์เพ็ญ',
+  'อนันต์ ทองมา',
+  'ศิริพร สายบุญ',
+  'ธีรเดช รุ่งโรจน์',
+  'กมลชนก ศรีสุข',
+  'ปกรณ์ บุญยืน',
+  'สุนิสา ดีงาม',
+  'อภิชาติ เพชรดี',
+  'วรรณา ชื่นใจ',
+  'ชยพล ทองสุข',
+  'ลลิตา ศรีงาม',
+  'ธนวัฒน์ ใจมั่น',
+  'พรทิพย์ บุญเรือง',
+  'สิทธิชัย แก้วกล้า',
+  'จิราพร ทองใบ',
+  'นพดล สายสุข',
+  'มณีรัตน์ ดวงแก้ว',
+];
+
 export interface SeedSummary {
   buildings: number;
   rooms: number;
@@ -257,7 +317,24 @@ export interface SeedSummary {
   tickets: number;
 }
 
-export async function seed(ds: DataSource, now: Date = new Date()): Promise<SeedSummary> {
+// บัญชีของทีม (npm run seed -- you@kmitl.ac.th …) แทน demo.* — รหัส login เข้าเมลจริงของแต่ละคน
+// ทุกคนได้ชุดเดียวกัน เดโมครบทุกขั้นได้ด้วยบัญชีของคนเดียว (docs/demo.md):
+//   +student1 +student2 ห้องเดียวกัน · +student3 อีกห้อง ไม่เคยแจ้งอะไร (ใช้เป็น "คนห้องอื่น" และ "คนที่ 11")
+//   +tech1 +tech2 · +staff1 +staff2 · +admin1 · +resident1–3 ผู้พักในข้อมูลเดโม ไม่มีใคร login
+export const MAX_SEED_OWNERS = 5;
+const PLAIN_UNIVERSITY_EMAIL = /^[^@s+]+@kmitl.ac.th$/;
+
+export interface SeedOptions {
+  now?: Date;
+  owners?: string[];
+}
+
+export async function seed(ds: DataSource, opts: SeedOptions = {}): Promise<SeedSummary> {
+  const now = opts.now ?? new Date();
+  const owners = (opts.owners ?? []).map((o) => o.trim().toLowerCase());
+  if (owners.length > MAX_SEED_OWNERS) throw new Error(`ใส่อีเมลได้ไม่เกิน ${MAX_SEED_OWNERS} คน (ห้อง 301–305)`);
+  for (const o of owners)
+    if (!PLAIN_UNIVERSITY_EMAIL.test(o)) throw new Error(`${o}: ต้องเป็นอีเมล @kmitl.ac.th ไม่มี +แท็ก`);
   const rng = mulberry32(2569);
   const between = ([min, max]: Range) => min + rng() * (max - min);
   const pick = <T>(xs: T[]): T => xs[Math.floor(rng() * xs.length)];
@@ -269,7 +346,7 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
       RESTART IDENTITY CASCADE`);
 
     // ---- อาคาร / ห้อง / ครุภัณฑ์ ----
-    const rooms: { id: string; buildingCode: string }[] = [];
+    const rooms: { id: string; buildingCode: string; roomNo: string }[] = [];
     const assets: Asset[] = [];
     const addAsset = async (
       code: string,
@@ -283,7 +360,7 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [id, code, a.name, a.category, buildingId, roomId, a.note ?? null, randomBytes(16).toString('hex')],
       );
-      assets.push({ id, roomId, title: a.title, symptom: a.symptom });
+      assets.push({ id, code, roomId, title: a.title, symptom: a.symptom });
     };
 
     const buildingCodes = ['D1', 'D2'];
@@ -304,7 +381,7 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
             roomNo,
             floor,
           ]);
-          rooms.push({ id: roomId, buildingCode: code });
+          rooms.push({ id: roomId, buildingCode: code, roomNo });
           for (const a of ROOM_ASSETS) await addAsset(`${code}-${roomNo}-${a.suffix}`, a, buildingId, roomId);
         }
       }
@@ -320,25 +397,63 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
         `INSERT INTO users (id, email, full_name, role, room_id, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
         [id, email, fullName, role, roomId, new Date(now.getTime() - 60 * 24 * HOUR)],
       );
-      people.push({ id, role, roomId });
+      const p = { id, role, roomId };
+      people.push(p);
+      return p;
     };
 
-    await addUser('demo.admin@kmitl.ac.th', 'ผู้ดูแลระบบ', 'admin');
-    // ชื่อคนจริงแบบเดียวกับต้นแบบหน้าจอ — หน้าจอเขียนประโยคอย่าง "ส่งกลับให้ช่างสมชายแล้ว"
-    // ถ้าชื่อในระบบขึ้นต้นด้วย "ช่าง" เอง ประโยคจะกลายเป็น "ช่างช่าง…"
-    const staffNames = ['วิภา สมบูรณ์', 'ธีรพงษ์ แสงทอง'];
-    const techNames = ['สมชาย ใจดี', 'ประเสริฐ มั่นคง', 'อนุชา ทองดี'];
-    for (let i = 1; i <= 2; i++) await addUser(`demo.staff${i}@kmitl.ac.th`, staffNames[i - 1], 'staff');
-    for (let i = 1; i <= 3; i++) await addUser(`demo.tech${i}@kmitl.ac.th`, techNames[i - 1], 'technician');
-    // ห้องละ 2 คน 3 ห้องแรกของแต่ละอาคาร (รูมเมทยืนยันแทนกันได้) + 2 คนที่ยังไม่ถูกผูกห้อง
-    const housedRooms = buildingCodes.flatMap((code) => rooms.filter((r) => r.buildingCode === code).slice(0, 3));
-    for (let i = 1; i <= 14; i++) {
-      const room = i <= 12 ? housedRooms[Math.floor((i - 1) / 2)].id : null;
-      await addUser(`demo.s00${String(i).padStart(2, '0')}@kmitl.ac.th`, `นักศึกษา คนที่ ${i}`, 'student', room);
+    // students = คนที่กดแจ้ง / เจอปัญหาเดียวกันในข้อมูลได้ · housed = ผู้แจ้งใบห้องพักของ scenario สุ่ม
+    let students: Person[];
+    let housed: Person[];
+    const team: { student1: Person; tech1: Person; staff1: Person; roomCode: string }[] = [];
+    if (owners.length === 0) {
+      await addUser('demo.admin@kmitl.ac.th', 'ผู้ดูแลระบบ', 'admin');
+      // ชื่อคนจริงแบบเดียวกับต้นแบบหน้าจอ — หน้าจอเขียนประโยคอย่าง "ส่งกลับให้ช่างสมชายแล้ว"
+      // ถ้าชื่อในระบบขึ้นต้นด้วย "ช่าง" เอง ประโยคจะกลายเป็น "ช่างช่าง…"
+      const staffNames = ['วิภา สมบูรณ์', 'ธีรพงษ์ แสงทอง'];
+      const techNames = ['สมชาย ใจดี', 'ประเสริฐ มั่นคง', 'อนุชา ทองดี'];
+      for (let i = 1; i <= 2; i++) await addUser(`demo.staff${i}@kmitl.ac.th`, staffNames[i - 1], 'staff');
+      for (let i = 1; i <= 3; i++) await addUser(`demo.tech${i}@kmitl.ac.th`, techNames[i - 1], 'technician');
+      // ห้องละ 2 คน 3 ห้องแรกของแต่ละอาคาร (รูมเมทยืนยันแทนกันได้) + 2 คนที่ยังไม่ถูกผูกห้อง
+      const housedRooms = buildingCodes.flatMap((code) => rooms.filter((r) => r.buildingCode === code).slice(0, 3));
+      for (let i = 1; i <= 14; i++) {
+        const room = i <= 12 ? housedRooms[Math.floor((i - 1) / 2)].id : null;
+        await addUser(`demo.s00${String(i).padStart(2, '0')}@kmitl.ac.th`, `นักศึกษา คนที่ ${i}`, 'student', room);
+      }
+      students = people.filter((p) => p.role === 'student');
+      housed = students.filter((p) => p.roomId);
+    } else {
+      const roomOf = (code: string, no: string) => rooms.find((r) => r.buildingCode === code && r.roomNo === no)!.id;
+      students = [];
+      housed = [];
+      for (const [k, owner] of owners.entries()) {
+        const [local, domain] = owner.split('@');
+        const mail = (tag: string) => `${local}+${tag}@${domain}`;
+        const no = `30${k + 1}`;
+        // ห้องของแต่ละคนตายตัว เอกสารเดโมอ้างได้: +student1/2 → D1-30x · +student3 → D2-30x · resident2/3 → D1-40x
+        const roomA = roomOf('D1', no);
+        const roomB = roomOf('D2', no);
+        const roomC = roomOf('D1', `40${k + 1}`);
+        await addUser(mail('admin1'), `ผู้ดูแลระบบ ${local}`, 'admin');
+        const staff1 = await addUser(mail('staff1'), TEAM_STAFF[k * 2], 'staff');
+        await addUser(mail('staff2'), TEAM_STAFF[k * 2 + 1], 'staff');
+        const tech1 = await addUser(mail('tech1'), TEAM_TECH[k * 2], 'technician');
+        await addUser(mail('tech2'), TEAM_TECH[k * 2 + 1], 'technician');
+        const student1 = await addUser(mail('student1'), TEAM_STUDENT[k * 6], 'student', roomA);
+        const student2 = await addUser(mail('student2'), TEAM_STUDENT[k * 6 + 1], 'student', roomA);
+        // +student3 ไม่อยู่ใน students / housed — ต้องไม่เคยแจ้งหรือกดเจอปัญหาเดียวกัน ถึงจะเป็น "คนที่ 11" ได้
+        await addUser(mail('student3'), TEAM_STUDENT[k * 6 + 2], 'student', roomB);
+        const residents = [
+          await addUser(mail('resident1'), TEAM_STUDENT[k * 6 + 3], 'student', roomB),
+          await addUser(mail('resident2'), TEAM_STUDENT[k * 6 + 4], 'student', roomC),
+          await addUser(mail('resident3'), TEAM_STUDENT[k * 6 + 5], 'student', roomC),
+        ];
+        students.push(student1, student2, ...residents);
+        // ใบสุ่มของห้องพักใช้แต่ผู้พักเสริม — ห้องของ +student1/2 ว่างไว้ให้แจ้งสดตอนเดโม
+        housed.push(...residents);
+        team.push({ student1, tech1, staff1, roomCode: `D1-${no}` });
+      }
     }
-
-    const students = people.filter((p) => p.role === 'student');
-    const housed = students.filter((p) => p.roomId);
     const staff = people.filter((p) => p.role === 'staff');
     const techs = people.filter((p) => p.role === 'technician');
     const commonAssets = assets.filter((a) => !a.roomId);
@@ -526,6 +641,57 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
       }
     }
 
+    // ---- ใบรออะไหล่ของแต่ละคนในทีม (เดโมขั้น 9) ----
+    // ห้องของ +student1 · ช่าง +tech1 ของคนเดียวกัน — ใครคุมจอก็โชว์ความเห็นภายในได้ด้วยบัญชีของตัวเอง
+    // เวลาเดินตามจริง: แจ้ง → มอบหมาย → เริ่มงาน → รออะไหล่ → ความเห็น และไม่เลยเวลาปัจจุบัน
+    for (const [k, mine] of team.entries()) {
+      const asset = assets.find((a) => a.code === `${mine.roomCode}-LIGHT`)!;
+      busy.add(asset.id);
+      const at = (h: number) => new Date(now.getTime() - (20 + k - h) * HOUR);
+      const reporter = mine.student1;
+      const tech = mine.tech1.id;
+      planned.push({
+        id: randomUUID(),
+        asset,
+        scope: 'room',
+        reporter,
+        createdAt: at(0),
+        status: 'pending_parts',
+        priority: 'normal',
+        assignedTo: tech,
+        permissionToEnter: true,
+        scheduledAt: null,
+        resolvedAt: null,
+        closedAt: null,
+        confirmedBy: null,
+        closeReason: null,
+        disputedAt: null,
+        reopenCount: 0,
+        updatedAt: at(3),
+        logs: [
+          { from: null, to: 'open', actorId: reporter.id, note: null, at: at(0) },
+          { from: 'open', to: 'assigned', actorId: mine.staff1.id, note: null, at: at(1) },
+          { from: 'assigned', to: 'in_progress', actorId: tech, note: null, at: at(2) },
+          {
+            from: 'in_progress',
+            to: 'pending_parts',
+            actorId: tech,
+            note: 'หลอดไฟรุ่นเดียวกันหมด สั่งจากร้านแล้ว',
+            at: at(3),
+          },
+        ],
+        audits: [{ action: 'assign', actorId: mine.staff1.id, detail: { from: null, to: tech }, at: at(1) }],
+        batchId: null,
+        sameIssue: [],
+        escalatedAt: null,
+        comments: [
+          { authorId: tech, body: 'สั่งหลอดไฟแล้ว ร้านแจ้งว่าได้ของภายใน 3 วัน', internal: false, at: at(3.25) },
+          { authorId: tech, body: 'อะไหล่ราคา 850 บาท ใช้งบซ่อมบำรุงของหอ', internal: true, at: at(3.5) },
+          { authorId: reporter.id, body: 'รับทราบครับ ระหว่างนี้ใช้โคมตั้งโต๊ะไปก่อน', internal: false, at: at(3.75) },
+        ],
+      });
+    }
+
     // ---- ใบแบบ batch: แจ้งหลายรายการในคำขอเดียว = หลายใบที่ batch_id เดียวกัน (กฎข้อ 1) ----
     // ต้องมีของจริงใน seed ไม่งั้นหน้า "ส่งแจ้งซ่อมแล้ว" และการกรองด้วย batch_id ไม่มีอะไรให้ทดสอบ
     const batchReporter = housed.find(
@@ -667,12 +833,15 @@ export async function seed(ds: DataSource, now: Date = new Date()): Promise<Seed
   });
 }
 
+// npm run seed                                   → บัญชี demo.* (เทสและ dev)
+// npm run seed -- a@kmitl.ac.th b@kmitl.ac.th   → บัญชี +แท็ก ของทีม (นำเสนอ / ซ้อม)
 async function main(): Promise<void> {
   if (process.env.NODE_ENV === 'production') throw new Error('seed ล้างข้อมูลทั้งหมด — ห้ามรันบน production');
+  const owners = process.argv.slice(2);
   const ds = new DataSource(dataSourceOptions(process.env.DATABASE_URL ?? ''));
   await ds.initialize();
   try {
-    const summary = await seed(ds);
+    const summary = await seed(ds, { owners });
     console.log('seed เสร็จ', summary);
   } catch (e) {
     if ((e as { code?: string }).code === '42P01') {
