@@ -15,7 +15,7 @@ export class CreateUserDto {
   @IsIn(USER_ROLES)
   role?: UserRole;
 
-  @ApiPropertyOptional({ type: String, nullable: true })
+  @ApiPropertyOptional({ example: 'สมชาย ใจดี', type: String, nullable: true })
   @IsOptional()
   @IsString()
   @MaxLength(200)
@@ -39,7 +39,7 @@ export class UpdateUserDto {
   @IsBoolean()
   is_active?: boolean;
 
-  @ApiPropertyOptional({ type: String, nullable: true, description: 'admin เท่านั้น' })
+  @ApiPropertyOptional({ example: 'สมชาย ใจดี', type: String, nullable: true, description: 'admin เท่านั้น' })
   @Nullable()
   @IsString()
   @MaxLength(200)

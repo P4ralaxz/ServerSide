@@ -10,7 +10,7 @@ export class UserView {
   @ApiProperty({ example: 'demo.s0001@kmitl.ac.th' })
   email: string;
 
-  @ApiProperty({ type: String, nullable: true })
+  @ApiProperty({ type: String, nullable: true, example: 'สมชาย ใจดี' })
   full_name: string | null;
 
   @ApiProperty({ enum: USER_ROLES })

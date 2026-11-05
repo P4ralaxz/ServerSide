@@ -117,7 +117,7 @@ export class SummaryRow extends ReportMetrics {
   @ApiPropertyOptional({ type: BuildingRefView })
   building?: BuildingRefView;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'electrical' })
   category?: string;
 
   @ApiPropertyOptional({ type: UserRefView, nullable: true, description: 'NULL = ใบที่ยังไม่มีช่าง' })

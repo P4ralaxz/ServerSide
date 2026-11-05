@@ -101,7 +101,7 @@ export class ChangeStatusDto {
   @IsIn(TICKET_STATUSES)
   to: TicketStatus;
 
-  @ApiPropertyOptional({ description: 'บังคับเมื่อไป pending_parts (อะไหล่ที่รอ)' })
+  @ApiPropertyOptional({ example: 'รอคอมเพรสเซอร์จากร้าน', description: 'บังคับเมื่อไป pending_parts (อะไหล่ที่รอ)' })
   @IsOptional()
   @IsString()
   @IsNotEmpty()
@@ -116,7 +116,7 @@ export class SetPriorityDto {
 }
 
 export class RejectTicketDto {
-  @ApiProperty({ description: 'เหตุผลที่ไม่รับเรื่อง — บังคับ' })
+  @ApiProperty({ example: 'ไม่อยู่ในความรับผิดชอบของหอพัก', description: 'เหตุผลที่ไม่รับเรื่อง — บังคับ' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(2000)
@@ -125,7 +125,10 @@ export class RejectTicketDto {
 
 export class ReopenTicketDto {
   // บังคับที่ DTO ไม่ใช่ที่ NOTE_REQUIRED: ปลายทาง assigned มาได้จาก /assign ด้วย ซึ่งไม่ต้องมี note
-  @ApiProperty({ description: 'อาการที่ยังเป็นอยู่ — บังคับ ช่างจะได้รู้ว่าต้องแก้ตรงไหน' })
+  @ApiProperty({
+    example: 'ยังมีน้ำหยดตอนเปิดเกิน 1 ชั่วโมง',
+    description: 'อาการที่ยังเป็นอยู่ — บังคับ ช่างจะได้รู้ว่าต้องแก้ตรงไหน',
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(2000)
@@ -216,7 +219,7 @@ export class UserRefView {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
-  @ApiProperty({ type: String, nullable: true, description: 'NULL = ยังไม่กรอกชื่อ' })
+  @ApiProperty({ example: 'สมชาย ใจดี', type: String, nullable: true, description: 'NULL = ยังไม่กรอกชื่อ' })
   name: string | null;
 }
 
@@ -284,10 +287,10 @@ export class TicketView {
   @ApiProperty({ enum: TICKET_PRIORITIES })
   priority: TicketPriority;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'แอร์ไม่เย็น' })
   title: string;
 
-  @ApiProperty({ type: String, nullable: true })
+  @ApiProperty({ example: 'เปิด 25 องศาแล้วมีแต่ลม ไม่เย็น', type: String, nullable: true })
   description: string | null;
 
   @ApiProperty()
@@ -337,12 +340,18 @@ export class TicketView {
   @ApiProperty({ type: UserRefView, nullable: true })
   assignee: UserRefView | null;
 
-  @ApiProperty({ type: String, nullable: true, description: 'เหตุผลที่ผู้พักส่งกลับครั้งล่าสุด' })
+  @ApiProperty({
+    example: 'ยังมีน้ำหยดตอนเปิดเกิน 1 ชั่วโมง',
+    type: String,
+    nullable: true,
+    description: 'เหตุผลที่ผู้พักส่งกลับครั้งล่าสุด',
+  })
   last_reopen_note: string | null;
 
   @ApiProperty({
     type: String,
     nullable: true,
+    example: 'คอมเพรสเซอร์แอร์',
     description:
       'อะไหล่ที่รออยู่ (note ของการเข้าขั้น pending_parts ครั้งล่าสุด) — มีค่าเฉพาะใบที่ status = pending_parts',
   })
@@ -381,7 +390,7 @@ export class HistoryEntryView {
   @ApiPropertyOptional({ enum: TICKET_STATUSES, description: 'เฉพาะ kind=status' })
   to_status?: TicketStatus;
 
-  @ApiPropertyOptional({ type: String, nullable: true })
+  @ApiPropertyOptional({ example: 'รออะไหล่จากร้าน', type: String, nullable: true })
   note?: string | null;
 
   @ApiPropertyOptional({
@@ -493,7 +502,7 @@ export class CommentView {
   @ApiProperty({ example: '12' })
   id: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'ช่างจะเข้าห้องช่วงบ่ายครับ' })
   body: string;
 
   @ApiProperty({ description: 'true = เห็นเฉพาะช่าง / Staff / admin' })

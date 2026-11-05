@@ -2,7 +2,8 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger } from '@n
 import { Response } from 'express';
 import { AppException, errorBody } from './domain-errors';
 
-const DEFAULT_CODE: Record<number, string> = {
+// code ของ HttpException ที่ Nest โยนเอง — เอกสาร Swagger ใช้ตารางเดียวกันเป็นตัวอย่างของแต่ละ status
+export const DEFAULT_CODE: Record<number, string> = {
   400: 'BAD_REQUEST',
   401: 'UNAUTHORIZED',
   403: 'FORBIDDEN',

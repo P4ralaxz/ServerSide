@@ -16,7 +16,12 @@ export class ScanAssetView {
   @ApiProperty({ example: 'electrical' })
   category: string;
 
-  @ApiProperty({ type: String, nullable: true, description: 'ใช้กับครุภัณฑ์ส่วนกลาง เช่น "ลิฟต์ฝั่งตะวันออก"' })
+  @ApiProperty({
+    example: 'ลิฟต์ฝั่งตะวันออก',
+    type: String,
+    nullable: true,
+    description: 'ใช้กับครุภัณฑ์ส่วนกลาง เช่น "ลิฟต์ฝั่งตะวันออก"',
+  })
   location_note: string | null;
 
   @ApiProperty({ type: BuildingRefView })

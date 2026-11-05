@@ -46,21 +46,21 @@ export class AssetDto {
 }
 
 export class PatchAssetDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'D1-301-AC' })
   @IfPresent()
   @IsString()
   @IsNotEmpty()
   @MaxLength(50)
   asset_code?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'เครื่องปรับอากาศ' })
   @IfPresent()
   @IsString()
   @IsNotEmpty()
   @MaxLength(200)
   name?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'electrical' })
   @IfPresent()
   @IsString()
   @IsNotEmpty()
@@ -82,7 +82,7 @@ export class PatchAssetDto {
   @IsUUID()
   room_id?: string | null;
 
-  @ApiPropertyOptional({ type: String, nullable: true })
+  @ApiPropertyOptional({ example: 'ลิฟต์ฝั่งตะวันออก', type: String, nullable: true })
   @Nullable()
   @IsString()
   @MaxLength(200)
@@ -119,13 +119,13 @@ export class AssetView {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'D1-301-AC' })
   asset_code: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'เครื่องปรับอากาศ' })
   name: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'electrical' })
   category: string;
 
   @ApiProperty({ format: 'uuid' })
@@ -134,13 +134,13 @@ export class AssetView {
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   room_id: string | null;
 
-  @ApiProperty({ type: String, nullable: true })
+  @ApiProperty({ example: 'ลิฟต์ฝั่งตะวันออก', type: String, nullable: true })
   location_note: string | null;
 
   @ApiProperty()
   is_common_area: boolean;
 
-  @ApiPropertyOptional({ description: 'ส่งให้เฉพาะ staff / admin' })
+  @ApiPropertyOptional({ example: '3f9c1a7e5b2d4c8a9e0f1b2c3d4e5f60', description: 'ส่งให้เฉพาะ staff / admin' })
   qr_token?: string;
 }
 

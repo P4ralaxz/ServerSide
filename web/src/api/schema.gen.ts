@@ -131,6 +131,14 @@ export interface CreateUserDto {
   room_id?: string | null;
 }
 
+export interface ErrorBody {
+  statusCode: number;
+  error: string;
+  code: string;
+  message: string;
+  details?: unknown;
+}
+
 export interface HistoryEntryView {
   kind: 'status' | 'audit';
   at: string;

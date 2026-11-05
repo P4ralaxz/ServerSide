@@ -25,7 +25,7 @@ export class RequestCodeResponse {
 }
 
 export class TokenResponse {
-  @ApiProperty()
+  @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIuLi4ifQ.signature' })
   access_token: string;
 
   @ApiProperty({ example: 'bearer' })

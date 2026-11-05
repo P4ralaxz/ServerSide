@@ -35,7 +35,7 @@ export class PatchRoomDto {
   @IsUUID()
   building_id?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: '301' })
   @IfPresent()
   @IsString()
   @IsNotEmpty()
@@ -69,7 +69,7 @@ export class RoomView {
   @ApiProperty({ format: 'uuid' })
   building_id: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '301' })
   room_no: string;
 
   @ApiProperty()

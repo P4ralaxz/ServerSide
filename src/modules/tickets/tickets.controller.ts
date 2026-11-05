@@ -179,6 +179,7 @@ export class TicketsController {
   @Roles('staff')
   @ApiOperation({ summary: 'ปรับความด่วน (staff, admin) — ไม่ใช่การเปลี่ยนสถานะ ลง audit log' })
   @ApiOkResponse({ type: TicketView })
+  @ApiBadRequestResponse({ description: 'priority ไม่อยู่ในรายการ' })
   @ApiForbiddenResponse({ description: 'role ไม่มีสิทธิ์' })
   @ApiNotFoundResponse({ description: 'ไม่พบ หรือมองไม่เห็นใบนี้' })
   @ApiConflictResponse({ description: 'TICKET_NOT_OPEN หรือ PRIORITY_UNCHANGED' })

@@ -19,14 +19,14 @@ export class BuildingDto {
 }
 
 export class PatchBuildingDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'D1' })
   @IfPresent()
   @IsString()
   @IsNotEmpty()
   @MaxLength(20)
   code?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'หอพักนักศึกษา D1' })
   @IfPresent()
   @IsString()
   @IsNotEmpty()
@@ -38,10 +38,10 @@ export class BuildingView {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'D1' })
   code: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'หอพักนักศึกษา D1' })
   name: string;
 }
 
