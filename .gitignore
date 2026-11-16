@@ -7,3 +7,12 @@ uploads/
 web/test-results/
 web/playwright-report/
 web/e2e/.tmp/
+.claude/
+
+# เอกสารทำงานกับ AI และแผนงาน — เก็บไว้ในเครื่องเท่านั้น
+DESIGN-maintenance-nestjs.md
+DESIGN-PATCH-W4.md
+CLAUDE.md
+UI-PLAN.md
+PROMPTS.md
+docs/ui/
