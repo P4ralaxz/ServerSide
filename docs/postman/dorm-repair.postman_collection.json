@@ -1,0 +1,1806 @@
+{
+  "info": {
+    "name": "ระบบแจ้งซ่อมหอพัก — ทดสอบคร่าว ๆ",
+    "description": "ทดสอบ flow หลักและกฎสิทธิ์ ใช้บัญชีทีมที่ seed ไว้ (ตัวแปร owner)\n\nวิธีใช้: 1) รันโฟลเดอร์ 0 ทีละคำขอ ขอรหัส → เปิดเมล → ใส่รหัสในตัวแปร otp → ยืนยันรหัส ครบ 6 บัญชี\n2) รันโฟลเดอร์ 1–5 ตามลำดับ (Run folder ได้)\nใช้เตียงนอนของห้องผู้แจ้ง (ไม่ใช่แอร์/หลอดไฟที่ใช้ในเดโม) · โฟลเดอร์ 6 ปิดใบอัตโนมัติ — ห้ามรันก่อนเดโมเสร็จ",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3100"
+    },
+    {
+      "key": "owner",
+      "value": "67070017"
+    },
+    {
+      "key": "otp",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "0. login (ทำครั้งเดียว)",
+      "item": [
+        {
+          "name": "health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "pm.test('db up', () => pm.expect(pm.response.json().db).to.eql('up'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ขอรหัสด้วยอีเมลนอก KMITL → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"someone@gmail.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/request-code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "request-code"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ไม่มี token → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ขอรหัส student1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{owner}}+student1@kmitl.ac.th\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/request-code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "request-code"
+              ]
+            },
+            "description": "ขอรหัสแล้วเปิดเมลของ {{owner}}@kmitl.ac.th เอารหัส 6 หลักไปใส่ตัวแปร otp ของ collection แล้วกด \"ยืนยันรหัส student1\""
+          }
+        },
+        {
+          "name": "ยืนยันรหัส student1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('token_student1', j.access_token);",
+                  "pm.collectionVariables.set('student1_id', j.user.id);",
+                  "if (j.user.room_id) pm.collectionVariables.set('student1_room_id', j.user.room_id);",
+                  "pm.test('JWT มีแค่ sub (ไม่มี role)', () => { const p = JSON.parse(atob(j.access_token.split('.')[1])); pm.expect(p).to.have.property('sub'); pm.expect(p).to.not.have.property('role'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{owner}}+student1@kmitl.ac.th\",\n  \"code\": \"{{otp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/verify-code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "verify-code"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ขอรหัส student2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{owner}}+student2@kmitl.ac.th\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/request-code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "request-code"
+              ]
+            },
+            "description": "ขอรหัสแล้วเปิดเมลของ {{owner}}@kmitl.ac.th เอารหัส 6 หลักไปใส่ตัวแปร otp ของ collection แล้วกด \"ยืนยันรหัส student2\""
+          }
+        },
+        {
+          "name": "ยืนยันรหัส student2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('token_student2', j.access_token);",
+                  "pm.collectionVariables.set('student2_id', j.user.id);",
+                  "if (j.user.room_id) pm.collectionVariables.set('student2_room_id', j.user.room_id);",
+                  "pm.test('JWT มีแค่ sub (ไม่มี role)', () => { const p = JSON.parse(atob(j.access_token.split('.')[1])); pm.expect(p).to.have.property('sub'); pm.expect(p).to.not.have.property('role'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{owner}}+student2@kmitl.ac.th\",\n  \"code\": \"{{otp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/verify-code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "verify-code"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ขอรหัส student3",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{owner}}+student3@kmitl.ac.th\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/request-code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "request-code"
+              ]
+            },
+            "description": "ขอรหัสแล้วเปิดเมลของ {{owner}}@kmitl.ac.th เอารหัส 6 หลักไปใส่ตัวแปร otp ของ collection แล้วกด \"ยืนยันรหัส student3\""
+          }
+        },
+        {
+          "name": "ยืนยันรหัส student3",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('token_student3', j.access_token);",
+                  "pm.collectionVariables.set('student3_id', j.user.id);",
+                  "if (j.user.room_id) pm.collectionVariables.set('student3_room_id', j.user.room_id);",
+                  "pm.test('JWT มีแค่ sub (ไม่มี role)', () => { const p = JSON.parse(atob(j.access_token.split('.')[1])); pm.expect(p).to.have.property('sub'); pm.expect(p).to.not.have.property('role'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{owner}}+student3@kmitl.ac.th\",\n  \"code\": \"{{otp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/verify-code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "verify-code"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ขอรหัส staff1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{owner}}+staff1@kmitl.ac.th\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/request-code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "request-code"
+              ]
+            },
+            "description": "ขอรหัสแล้วเปิดเมลของ {{owner}}@kmitl.ac.th เอารหัส 6 หลักไปใส่ตัวแปร otp ของ collection แล้วกด \"ยืนยันรหัส staff1\""
+          }
+        },
+        {
+          "name": "ยืนยันรหัส staff1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('token_staff1', j.access_token);",
+                  "pm.collectionVariables.set('staff1_id', j.user.id);",
+                  "if (j.user.room_id) pm.collectionVariables.set('staff1_room_id', j.user.room_id);",
+                  "pm.test('JWT มีแค่ sub (ไม่มี role)', () => { const p = JSON.parse(atob(j.access_token.split('.')[1])); pm.expect(p).to.have.property('sub'); pm.expect(p).to.not.have.property('role'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{owner}}+staff1@kmitl.ac.th\",\n  \"code\": \"{{otp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/verify-code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "verify-code"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ขอรหัส tech1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{owner}}+tech1@kmitl.ac.th\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/request-code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "request-code"
+              ]
+            },
+            "description": "ขอรหัสแล้วเปิดเมลของ {{owner}}@kmitl.ac.th เอารหัส 6 หลักไปใส่ตัวแปร otp ของ collection แล้วกด \"ยืนยันรหัส tech1\""
+          }
+        },
+        {
+          "name": "ยืนยันรหัส tech1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('token_tech1', j.access_token);",
+                  "pm.collectionVariables.set('tech1_id', j.user.id);",
+                  "if (j.user.room_id) pm.collectionVariables.set('tech1_room_id', j.user.room_id);",
+                  "pm.test('JWT มีแค่ sub (ไม่มี role)', () => { const p = JSON.parse(atob(j.access_token.split('.')[1])); pm.expect(p).to.have.property('sub'); pm.expect(p).to.not.have.property('role'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{owner}}+tech1@kmitl.ac.th\",\n  \"code\": \"{{otp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/verify-code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "verify-code"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ขอรหัส admin1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{owner}}+admin1@kmitl.ac.th\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/request-code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "request-code"
+              ]
+            },
+            "description": "ขอรหัสแล้วเปิดเมลของ {{owner}}@kmitl.ac.th เอารหัส 6 หลักไปใส่ตัวแปร otp ของ collection แล้วกด \"ยืนยันรหัส admin1\""
+          }
+        },
+        {
+          "name": "ยืนยันรหัส admin1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('token_admin1', j.access_token);",
+                  "pm.collectionVariables.set('admin1_id', j.user.id);",
+                  "if (j.user.room_id) pm.collectionVariables.set('admin1_room_id', j.user.room_id);",
+                  "pm.test('JWT มีแค่ sub (ไม่มี role)', () => { const p = JSON.parse(atob(j.access_token.split('.')[1])); pm.expect(p).to.have.property('sub'); pm.expect(p).to.not.have.property('role'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{owner}}+admin1@kmitl.ac.th\",\n  \"code\": \"{{otp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/verify-code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "verify-code"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. เตรียมข้อมูล",
+      "item": [
+        {
+          "name": "student1 ดูตัวเอง",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "pm.test('role = student', () => pm.expect(pm.response.json().role).to.eql('student'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "staff หาเตียงในห้องผู้แจ้ง",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "const bed = pm.response.json().find((a) => a.asset_code.endsWith('-BED'));",
+                  "pm.test('เจอเตียง', () => pm.expect(bed).to.be.ok);",
+                  "pm.collectionVariables.set('asset_id', bed.id); pm.collectionVariables.set('qr_token', bed.qr_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_staff1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/assets?room_id={{student1_room_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "assets"
+              ],
+              "query": [
+                {
+                  "key": "room_id",
+                  "value": "{{student1_room_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "student1 สแกน QR เตียง",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "pm.test('แจ้งได้', () => pm.expect(pm.response.json().can_report).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/scan/{{qr_token}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "scan",
+                "{{qr_token}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. แจ้งซ่อม + กันแจ้งซ้ำ",
+      "item": [
+        {
+          "name": "คนห้องอื่นแจ้ง → 403 (ไม่ใช่ 409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student3}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"asset_id\": \"{{asset_id}}\",\n      \"title\": \"เตียงหัก\",\n      \"description\": \"ขาเตียงหัก\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets"
+              ]
+            }
+          }
+        },
+        {
+          "name": "items ว่าง → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = VALIDATION_FAILED', () => pm.expect(pm.response.json().code).to.eql('VALIDATION_FAILED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": []\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets"
+              ]
+            }
+          }
+        },
+        {
+          "name": "student1 แจ้งซ่อม → 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('สร้าง 1 ใบ', () => pm.expect(j.created.length).to.eql(1));",
+                  "pm.collectionVariables.set('ticket_id', j.created[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"asset_id\": \"{{asset_id}}\",\n      \"title\": \"เตียงหัก\",\n      \"description\": \"ขาเตียงข้างซ้ายหัก นั่งแล้วโยก\",\n      \"permission_to_enter\": true\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets"
+              ]
+            }
+          }
+        },
+        {
+          "name": "รูมเมทแจ้งชิ้นเดิม → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = DUPLICATE_OPEN_TICKET', () => pm.expect(pm.response.json().code).to.eql('DUPLICATE_OPEN_TICKET'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student2}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"asset_id\": \"{{asset_id}}\",\n      \"title\": \"เตียงหัก\",\n      \"description\": \"ซ้ำ\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets"
+              ]
+            }
+          }
+        },
+        {
+          "name": "คนห้องอื่นเปิดดูใบ → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student3}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "id ไม่ใช่ uuid → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tickets/not-a-uuid",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "not-a-uuid"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. workflow + สิทธิ์",
+      "item": [
+        {
+          "name": "นักศึกษามอบหมายงาน → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"technician_id\": \"{{tech1_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/assign",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "assign"
+              ]
+            }
+          }
+        },
+        {
+          "name": "staff มอบหมายให้ tech1 → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "pm.test('assigned', () => pm.expect(pm.response.json().status).to.eql('assigned'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_staff1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"technician_id\": \"{{tech1_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/assign",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "assign"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ช่างเริ่มงาน → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_tech1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"in_progress\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ช่างซ่อมเสร็จ → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "pm.test('resolved', () => pm.expect(pm.response.json().status).to.eql('resolved'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_tech1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"resolved\",\n  \"note\": \"ขันน็อตขาเตียงใหม่\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ช่างปิดใบเอง → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_tech1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/confirm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "confirm"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Staff ยืนยันใบห้องพักแทน → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_staff1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/confirm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "confirm"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ยังไม่หาย ไม่ใส่เหตุผล → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/reopen",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "reopen"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ผู้แจ้งกดยังไม่หาย → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "pm.test('กลับไปหาช่างคนเดิม', () => { const j = pm.response.json(); pm.expect(j.status).to.eql('assigned'); pm.expect(j.assigned_to).to.eql(pm.collectionVariables.get('tech1_id')); pm.expect(j.reopen_count).to.eql(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"ยังโยกอยู่\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/reopen",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "reopen"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ช่างเริ่มงานรอบสอง",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_tech1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"in_progress\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ช่างซ่อมเสร็จรอบสอง",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_tech1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"resolved\",\n  \"note\": \"เปลี่ยนขาเตียง\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "รูมเมทยืนยันหายแล้ว → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "pm.test('closed', () => pm.expect(pm.response.json().status).to.eql('closed'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student2}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/confirm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "confirm"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ยืนยันซ้ำ → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = INVALID_TRANSITION', () => pm.expect(pm.response.json().code).to.eql('INVALID_TRANSITION'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student2}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/confirm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "confirm"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ประวัติสถานะ",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/history",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "history"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. ความเห็นภายใน",
+      "item": [
+        {
+          "name": "นักศึกษาส่งความเห็นภายใน → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"ขอดูหน่อย\",\n  \"is_internal\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/comments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "comments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ช่างส่งความเห็นภายใน → 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_tech1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"ขาเตียงราคา 350 บาท\",\n  \"is_internal\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/comments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "comments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ช่างเห็นความเห็นภายใน",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "pm.test('มีความเห็นภายใน', () => pm.expect(pm.response.json().some((c) => c.is_internal)).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_tech1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/comments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "comments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ผู้พักไม่เห็นความเห็นภายใน",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "pm.test('ไม่มีความเห็นภายใน', () => pm.expect(pm.response.json().some((c) => c.is_internal)).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/comments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "comments"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. รายงาน + คิว",
+      "item": [
+        {
+          "name": "นักศึกษาดูรายงาน → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_student1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reports/sla-summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reports",
+                "sla-summary"
+              ]
+            }
+          }
+        },
+        {
+          "name": "staff ดูรายงาน → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_staff1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reports/sla-summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reports",
+                "sla-summary"
+              ]
+            }
+          }
+        },
+        {
+          "name": "staff ดูตัวเลขคิว → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_staff1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tickets/queue-counts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "queue-counts"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. ปิดอัตโนมัติ (ห้ามรันก่อนเดโมเสร็จ)",
+      "item": [
+        {
+          "name": "staff สั่งรัน → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_staff1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/jobs/auto-close/run",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "jobs",
+                "auto-close",
+                "run"
+              ]
+            }
+          }
+        },
+        {
+          "name": "admin สั่งรัน → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ได้ 200', () => pm.response.to.have.status(200));",
+                  "pm.test('มี closed_count', () => pm.expect(pm.response.json().closed_count).to.be.a('number'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin1}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/jobs/auto-close/run",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "jobs",
+                "auto-close",
+                "run"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
